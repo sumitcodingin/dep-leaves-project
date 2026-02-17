@@ -18,6 +18,7 @@ enum RoleKey {
   DIRECTOR
   ACCOUNTS
   ESTABLISHMENT
+  ADMIN
 }
 
 enum DepartmentType {

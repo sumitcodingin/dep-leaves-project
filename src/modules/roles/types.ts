@@ -9,7 +9,8 @@ export type RoleSlug =
   | "registrar"
   | "accounts"
   | "establishment"
-  | "director";
+  | "director"
+  | "admin";
 
 export type QuickAction = {
   label: string;

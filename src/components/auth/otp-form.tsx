@@ -34,6 +34,11 @@ type ApiResponse = {
   message?: string;
   role?: RoleSlug;
   redirectTo?: string;
+  user?: {
+    email: string;
+    roleKey: string;
+    name?: string;
+  };
 };
 
 const fetcher = async (url: string, body: Record<string, unknown>) => {
@@ -111,6 +116,11 @@ export const OtpForm = () => {
       const destination =
         result.redirectTo ??
         (result.role ? `/dashboard/${result.role}` : "/dashboard/faculty");
+
+      if (typeof window !== "undefined" && result.user) {
+        window.localStorage.setItem("lf-user-email", result.user.email);
+        window.localStorage.setItem("lf-user-role", result.user.roleKey);
+      }
       setStage("SUCCESS");
       setStatusMessage("Signed in. Redirecting you now...");
       emailForm.reset();

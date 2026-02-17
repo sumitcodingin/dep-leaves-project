@@ -8,6 +8,7 @@ import { facultyDashboard } from "./faculty/config";
 import { hodDashboard } from "./hod/config";
 import { registrarDashboard } from "./registrar/config";
 import { staffDashboard } from "./staff/config";
+import { adminDashboard } from "./admin/config";
 
 const dashboards = {
   faculty: facultyDashboard,
@@ -19,6 +20,7 @@ const dashboards = {
   accounts: accountsDashboard,
   establishment: establishmentDashboard,
   director: directorDashboard,
+  admin: adminDashboard,
 } satisfies Record<RoleSlug, RoleDashboardConfig>;
 
 export const roleConfigs: Record<RoleSlug, RoleDashboardConfig> = dashboards;

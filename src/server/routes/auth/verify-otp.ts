@@ -21,6 +21,7 @@ const roleSlugMap: Record<RoleKey, RoleSlug> = {
   [RoleKey.DIRECTOR]: "director",
   [RoleKey.ACCOUNTS]: "accounts",
   [RoleKey.ESTABLISHMENT]: "establishment",
+  [RoleKey.ADMIN]: "admin",
 };
 
 const resolveRoleKey = (

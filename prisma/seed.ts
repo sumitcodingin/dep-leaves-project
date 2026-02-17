@@ -93,6 +93,12 @@ const roles = [
     isApprover: true,
     description: "Office order drafting and leave ledger maintenance.",
   },
+  {
+    key: RoleKey.ADMIN,
+    name: "Portal Admin",
+    isApprover: false,
+    description: "Manages portal access and user provisioning.",
+  },
 ];
 
 const leaveTypes = [
@@ -257,6 +263,15 @@ const userSeeds = [
     departmentCode: "ESTAB",
     role: RoleKey.STAFF,
     reportsToKey: "establishment",
+  },
+  {
+    key: "admin",
+    name: "Portal Admin",
+    email: "2023csb1288+admin@iitrpr.ac.in",
+    designation: "Clerical Admin",
+    employeeCode: "IITRPR-ADM01",
+    departmentCode: "ESTAB",
+    role: RoleKey.ADMIN,
   },
 ];
 
