@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from "nodemailer";
+
 import { env, emailTransportConfigured } from "@/env";
 
 let transport: Transporter | null = null;
