@@ -26,4 +26,7 @@ const dashboards = {
 export const roleConfigs: Record<RoleSlug, RoleDashboardConfig> = dashboards;
 export const roleList = Object.values(roleConfigs);
 
+export const isRoleSlug = (value: string): value is RoleSlug =>
+  value in roleConfigs;
+
 export * from "./types";
