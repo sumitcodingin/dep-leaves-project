@@ -32,6 +32,20 @@ export const registrarDashboard: RoleDashboardConfig = {
       icon: FileSignature,
     },
     {
+      label: "Travel other than Air India",
+      description: "Permission request to fly airlines other than Air India.",
+      cta: "Fill the form",
+      href: "/non-air-india?returnTo=/dashboard/registrar",
+      icon: FileSignature,
+    },
+    {
+      label: "LTC form",
+      description: "Leave Travel Concession application (2 pages).",
+      cta: "Fill the form",
+      href: "/ltc?returnTo=/dashboard/registrar",
+      icon: FileSignature,
+    },
+    {
       label: "Station leave form",
       description: "Station leave permission request.",
       cta: "Fill the form",
