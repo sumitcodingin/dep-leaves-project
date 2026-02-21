@@ -1,8 +1,8 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -37,11 +37,23 @@ export default function EarnedLeavePage() {
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("returnTo");
   const formRef = useRef<HTMLFormElement>(null);
-  const [missingFields, setMissingFields] = useState<string[]>([]);
-  const [previewData, setPreviewData] = useState<Record<string, string> | null>(
-    null,
-  );
   const [confirmed, setConfirmed] = useState(false);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
+
+  const markMissingInputs = (form: HTMLFormElement, missing: Set<string>) => {
+    const inputs = Array.from(form.querySelectorAll<HTMLInputElement>("input"));
+    inputs.forEach((input) => {
+      const key = input.name || input.id;
+      const hasError = key ? missing.has(key) : false;
+      input.classList.toggle("border-red-500", hasError);
+      input.classList.toggle("focus:border-red-600", hasError);
+      input.classList.toggle("ring-1", hasError);
+      input.classList.toggle("ring-red-300", hasError);
+      input.classList.toggle("focus:ring-red-400", hasError);
+      input.classList.toggle("bg-red-50", hasError);
+      input.setAttribute("aria-invalid", hasError ? "true" : "false");
+    });
+  };
 
   const handleBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -69,28 +81,21 @@ export default function EarnedLeavePage() {
       .map((input) => input.name || input.id)
       .filter(Boolean);
     const missing = required.filter((key) => !data[key]?.trim());
-
-    if (missing.length > 0) {
-      setMissingFields(Array.from(new Set(missing)));
-      setPreviewData(null);
+    const missingSet = new Set(missing);
+    markMissingInputs(form, missingSet);
+    if (missingSet.size > 0) {
+      setMissingFields(Array.from(missingSet));
       return;
     }
 
     setMissingFields([]);
-    setPreviewData(data);
-  };
-
-  const handleConfirm = () => {
-    if (!previewData) return;
+    const confirmedSubmit = window.confirm(
+      "Are you sure you want to apply for Earned Leave?",
+    );
+    if (!confirmedSubmit) return;
     setConfirmed(true);
-    // Replace with API submission when backend is ready
-    console.log("Earned leave form confirmed", previewData);
+    console.log("Earned leave form submitted", data);
   };
-
-  const previewEntries = useMemo(() => {
-    if (!previewData) return [] as Array<[string, string]>;
-    return Object.entries(previewData);
-  }, [previewData]);
 
   return (
     <DashboardShell>
@@ -250,75 +255,17 @@ export default function EarnedLeavePage() {
             </div>
           </SurfaceCard>
 
-          {missingFields.length > 0 && (
-            <SurfaceCard className="max-w-4xl border border-amber-400 bg-amber-50 text-amber-900">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="mt-0.5 h-4 w-4" />
-                <div>
-                  <p className="font-semibold text-sm">
-                    Missing required fields
-                  </p>
-                  <ul className="list-disc space-y-1 pl-4 text-xs">
-                    {missingFields.map((field) => (
-                      <li key={field}>{field}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </SurfaceCard>
-          )}
-
-          {previewData && (
-            <SurfaceCard className="max-w-4xl border border-emerald-300 bg-emerald-50 text-emerald-900">
-              <div className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-4 w-4" />
-                <div className="space-y-2">
-                  <p className="font-semibold text-sm">
-                    Review your entries before confirming
-                  </p>
-                  <div className="grid grid-cols-1 gap-1 text-[11px] md:grid-cols-2">
-                    {previewEntries.map(([key, value]) => (
-                      <div key={key} className="flex items-start gap-1">
-                        <span className="font-semibold capitalize">{key}:</span>
-                        <span className="break-words text-slate-800">
-                          {value || "(empty)"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </SurfaceCard>
-          )}
-
           <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-4 py-3">
             <div className="text-xs text-slate-600">
               {confirmed
                 ? "Submission confirmed. You can still edit and resubmit if needed."
-                : previewData
-                  ? "Looks good? Confirm to submit."
-                  : "Fill all fields, then submit to validate."}
+                : missingFields.length > 0
+                  ? "Please fill the highlighted fields."
+                  : "Fill all fields, then submit."}
             </div>
             <div className="flex items-center gap-2">
-              {previewData && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setPreviewData(null);
-                    setConfirmed(false);
-                  }}
-                  className="text-sm"
-                >
-                  Edit
-                </Button>
-              )}
-              <Button
-                type={previewData ? "button" : "submit"}
-                onClick={previewData ? handleConfirm : undefined}
-                className="px-4 text-sm"
-              >
-                {previewData ? "Confirm submit" : "Submit"}
+              <Button type="submit" className="px-4 text-sm">
+                Submit
               </Button>
             </div>
           </div>
