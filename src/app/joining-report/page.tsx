@@ -5,11 +5,15 @@ import { useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { cn } from "@/lib/utils";
+
+type DialogState = "confirm" | "success" | null;
 
 const UnderlineInput = ({
   id,
@@ -37,8 +41,11 @@ export default function JoiningReportPage() {
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("returnTo");
   const formRef = useRef<HTMLFormElement>(null);
+  const pendingDataRef = useRef<Record<string, string>>({});
   const [confirmed, setConfirmed] = useState(false);
   const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [dialogState, setDialogState] = useState<DialogState>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const markMissingInputs = (form: HTMLFormElement, missing: Set<string>) => {
     const inputs = Array.from(form.querySelectorAll<HTMLInputElement>("input"));
@@ -88,12 +95,32 @@ export default function JoiningReportPage() {
     }
 
     setMissingFields([]);
-    const confirmedSubmit = window.confirm(
-      "Are you sure you want to apply for Joining Report?",
-    );
-    if (!confirmedSubmit) return;
+    pendingDataRef.current = data;
+    setDialogState("confirm");
+  };
+
+  const handleConfirmSubmit = () => {
     setConfirmed(true);
-    console.log("Joining report submitted", data);
+    setDialogState("success");
+    console.log("Joining report submitted", pendingDataRef.current);
+  };
+
+  const handleCloseDialog = () => {
+    setDialogState(null);
+  };
+
+  const handleDownloadPdf = async () => {
+    const form = formRef.current;
+    if (!form) return;
+    setIsDownloading(true);
+    try {
+      await generatePdfFromForm(form, "Joining Report");
+    } catch (err) {
+      console.error("PDF generation failed", err);
+      window.alert("Unable to generate PDF. Please try again.");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -250,7 +277,205 @@ export default function JoiningReportPage() {
             </div>
           </div>
         </form>
+
+        <ConfirmationModal
+          state={dialogState}
+          title="Joining Report"
+          onCancel={handleCloseDialog}
+          onConfirm={handleConfirmSubmit}
+          onDownload={handleDownloadPdf}
+          isDownloading={isDownloading}
+        />
       </div>
     </DashboardShell>
   );
 }
+
+const generatePdfFromForm = async (element: HTMLElement, title: string) => {
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    onclone: (doc) => {
+      const containsUnsupported = (val?: string | null) =>
+        Boolean(val && /(oklab|oklch|\slab\s*\()/i.test(val));
+      const safeBorder = "rgba(15, 23, 42, 0.2)";
+      const safeInk = "#0f172a";
+
+      // Remove any style tags that declare lab/oklab/oklch colors
+      doc.querySelectorAll("style").forEach((styleTag) => {
+        if (containsUnsupported(styleTag.textContent)) {
+          styleTag.remove();
+        }
+      });
+
+      // Global reset to kill gradients/shadows
+      const resetStyle = doc.createElement("style");
+      resetStyle.textContent = `
+        * { color: ${safeInk} !important; background: #ffffff !important; background-image: none !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; }
+        * { border-color: ${safeBorder} !important; outline-color: ${safeInk} !important; }
+        svg *, path, line, rect, circle { fill: ${safeInk} !important; stroke: ${safeInk} !important; }
+      `;
+      doc.head.appendChild(resetStyle);
+
+      doc.body.style.background = "#ffffff";
+      doc.body.style.backgroundImage = "none";
+
+      doc.querySelectorAll<HTMLElement>("*").forEach((el) => {
+        const style = doc.defaultView?.getComputedStyle(el);
+        if (!style) return;
+
+        // overwrite any remaining lab/oklab values
+        if (containsUnsupported(style.color)) el.style.color = safeInk;
+
+        if (
+          containsUnsupported(style.backgroundColor) ||
+          containsUnsupported(style.backgroundImage)
+        ) {
+          el.style.backgroundColor = "#ffffff";
+          el.style.backgroundImage = "none";
+        }
+
+        [
+          "borderColor",
+          "borderTopColor",
+          "borderRightColor",
+          "borderBottomColor",
+          "borderLeftColor",
+        ].forEach((prop) => {
+          const val = (style as unknown as Record<string, string>)[prop];
+          if (containsUnsupported(val)) {
+            (el.style as unknown as Record<string, string>)[prop] = safeBorder;
+          }
+        });
+
+        if (containsUnsupported(style.outlineColor)) {
+          el.style.outlineColor = safeInk;
+        }
+
+        if (containsUnsupported(style.boxShadow)) {
+          el.style.boxShadow = "none";
+        }
+
+        if (containsUnsupported(style.textShadow)) {
+          el.style.textShadow = "none";
+        }
+
+        if (containsUnsupported(style.fill)) {
+          el.style.fill = safeInk;
+        }
+
+        if (containsUnsupported(style.stroke)) {
+          el.style.stroke = safeInk;
+        }
+      });
+    },
+  });
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF("p", "pt", "a4");
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const imgWidth = pageWidth;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  let heightLeft = imgHeight;
+  let position = 0;
+
+  while (heightLeft > 0) {
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    if (heightLeft > 0) {
+      position -= pageHeight;
+      pdf.addPage();
+    }
+  }
+
+  const safeName = title.replace(/\s+/g, "-").toLowerCase();
+  pdf.save(`${safeName}.pdf`);
+};
+
+const ConfirmationModal = ({
+  state,
+  title,
+  onCancel,
+  onConfirm,
+  onDownload,
+  isDownloading,
+}: {
+  state: DialogState;
+  title: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+  onDownload: () => void;
+  isDownloading: boolean;
+}) => {
+  if (!state) return null;
+  const isSuccess = state === "success";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8">
+      <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-2xl">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <p className="text-sm font-semibold text-slate-900">
+            {isSuccess ? "Submission successful" : "Confirm submission"}
+          </p>
+          <p className="text-xs text-slate-600">
+            {isSuccess
+              ? `${title} has been submitted successfully. You may close this window.`
+              : `You are about to submit the ${title} form. Please review and confirm the details before continuing.`}
+          </p>
+        </div>
+
+        <div className="space-y-3 px-5 py-4 text-sm text-slate-800">
+          {isSuccess ? (
+            <ul className="list-disc space-y-1 pl-4 text-[13px] text-slate-700">
+              <li>Submission received and recorded.</li>
+              <li>You may keep a copy for your records.</li>
+            </ul>
+          ) : (
+            <ul className="list-disc space-y-1 pl-4 text-[13px] text-slate-700">
+              <li>I confirm the information provided is accurate.</li>
+              <li>I acknowledge the submission will be routed for review.</li>
+              <li>I understand I may be contacted for clarifications.</li>
+            </ul>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+          {isSuccess ? (
+            <>
+              <Button
+                type="button"
+                onClick={onDownload}
+                className="px-4 text-sm"
+                disabled={isDownloading}
+              >
+                {isDownloading ? "Preparing..." : "Download PDF"}
+              </Button>
+              <Button type="button" onClick={onCancel} className="px-4 text-sm">
+                Close
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                onClick={onCancel}
+                className="px-3 text-sm"
+                type="button"
+              >
+                Go back
+              </Button>
+              <Button
+                type="button"
+                onClick={onConfirm}
+                className="px-4 text-sm"
+              >
+                Yes, submit
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
