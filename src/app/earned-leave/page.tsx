@@ -1,6 +1,8 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import type { FormEvent } from "react";
+import { useMemo, useRef, useState } from "react";
+import { AlertCircle, ArrowLeft, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -34,6 +36,12 @@ export default function EarnedLeavePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("returnTo");
+  const formRef = useRef<HTMLFormElement>(null);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [previewData, setPreviewData] = useState<Record<string, string> | null>(
+    null,
+  );
+  const [confirmed, setConfirmed] = useState(false);
 
   const handleBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -44,6 +52,45 @@ export default function EarnedLeavePage() {
       router.push(safeReturnTo);
     }
   };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setConfirmed(false);
+    const form = formRef.current;
+    if (!form) return;
+
+    const data = Object.fromEntries(new FormData(form)) as Record<
+      string,
+      string
+    >;
+    const required = Array.from(
+      form.querySelectorAll<HTMLInputElement>("input"),
+    )
+      .map((input) => input.name || input.id)
+      .filter(Boolean);
+    const missing = required.filter((key) => !data[key]?.trim());
+
+    if (missing.length > 0) {
+      setMissingFields(Array.from(new Set(missing)));
+      setPreviewData(null);
+      return;
+    }
+
+    setMissingFields([]);
+    setPreviewData(data);
+  };
+
+  const handleConfirm = () => {
+    if (!previewData) return;
+    setConfirmed(true);
+    // Replace with API submission when backend is ready
+    console.log("Earned leave form confirmed", previewData);
+  };
+
+  const previewEntries = useMemo(() => {
+    if (!previewData) return [] as Array<[string, string]>;
+    return Object.entries(previewData);
+  }, [previewData]);
 
   return (
     <DashboardShell>
@@ -56,147 +103,226 @@ export default function EarnedLeavePage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
 
-        <SurfaceCard className="mx-auto max-w-4xl space-y-5 border border-slate-300 bg-white p-4 md:p-6">
-          <header className="space-y-1 text-center text-slate-900">
-            <div className="flex items-center justify-center gap-4">
-              <Image
-                src="/iit_ropar.png"
-                alt="IIT Ropar"
-                width={56}
-                height={56}
-                className="object-contain"
-              />
-              <div className="space-y-1">
-                <p className="text-base font-semibold">
-                  भारतीय प्रौद्योगिकी संस्थान रोपड़
-                </p>
-                <p className="text-base font-semibold uppercase">
-                  INDIAN INSTITUTE OF TECHNOLOGY ROPAR
-                </p>
-                <p className="text-[11px] text-slate-700">
-                  नंगल रोड, रूपनगर, पंजाब-140001 / Nangal Road, Rupnagar,
-                  Punjab-140001
-                </p>
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+          <SurfaceCard className="mx-auto max-w-4xl space-y-5 border border-slate-300 bg-white p-4 md:p-6">
+            <header className="space-y-1 text-center text-slate-900">
+              <div className="flex items-center justify-center gap-4">
+                <Image
+                  src="/iit_ropar.png"
+                  alt="IIT Ropar"
+                  width={56}
+                  height={56}
+                  className="object-contain"
+                />
+                <div className="space-y-1">
+                  <p className="text-base font-semibold">
+                    भारतीय प्रौद्योगिकी संस्थान रोपड़
+                  </p>
+                  <p className="text-base font-semibold uppercase">
+                    INDIAN INSTITUTE OF TECHNOLOGY ROPAR
+                  </p>
+                  <p className="text-[11px] text-slate-700">
+                    नंगल रोड, रूपनगर, पंजाब-140001 / Nangal Road, Rupnagar,
+                    Punjab-140001
+                  </p>
+                </div>
               </div>
+              <p className="text-[12px] font-semibold">
+                छुट्टी के लिए अथवा छुट्टी बढ़ाने हेतु आवेदन / Application for
+                Leave or Extension of Leave
+              </p>
+              <p className="text-[11px]">
+                (अर्जित छुट्टी/अर्ध वेतन छुट्टी/असाधारण छुट्टी/कम्यूटेड
+                छुट्टी/विश्राम की छुट्टी/मातृत्व छुट्टी/पितृत्व छुट्टी/बाल
+                देखभाल छुट्टी)
+              </p>
+              <p className="text-[11px]">
+                (Earned Leave/Half Pay Leave/Extra Ordinary Leave/Commuted
+                Leave/Vacation/Maternity Leave/Paternity Leave/Child Care Leave)
+              </p>
+            </header>
+
+            <div className="overflow-x-auto">
+              <table className="w-full border border-slate-400 text-[12px] text-slate-900">
+                <colgroup>
+                  <col className="w-[36%]" />
+                  <col />
+                </colgroup>
+                <tbody>
+                  <Row
+                    label="1. आवेदक का नाम / Name of the applicant"
+                    inputId="name"
+                  />
+                  <Row label="2. पद नाम / Post held" inputId="post" />
+                  <Row
+                    label="3. विभाग/केन्द्रीय कार्यालय/अनुभाग / Department/Office/Section"
+                    inputId="department"
+                  />
+                  <Row
+                    label="4. अवकाश का प्रकार / Nature of Leave applied for"
+                    inputId="leaveType"
+                  />
+                  <RowPeriod />
+                  <RowPrefixSuffix />
+                  <Row label="7. उद्देश्य / Purpose" inputId="purpose" />
+                  <Row
+                    label="8. कार्य, प्रशासनिक या अन्य उत्तरदायित्व (यदि कोई हो) के लिए वैकल्पिक व्यवस्था / Alternative arrangements"
+                    inputId="arrangements"
+                  />
+                  <Row
+                    label="9. मैं एल.टी.सी. लेने हेतु प्रस्तावित करता हूँ / I propose/do not propose to avail myself of Leave Travel Concession during the leave."
+                    inputId="ltc"
+                  />
+                  <RowAddress />
+                  <RowStation />
+                </tbody>
+              </table>
             </div>
-            <p className="text-[12px] font-semibold">
-              छुट्टी के लिए अथवा छुट्टी बढ़ाने हेतु आवेदन / Application for
-              Leave or Extension of Leave
-            </p>
-            <p className="text-[11px]">
-              (अर्जित छुट्टी/अर्ध वेतन छुट्टी/असाधारण छुट्टी/कम्यूटेड
-              छुट्टी/विश्राम की छुट्टी/मातृत्व छुट्टी/पितृत्व छुट्टी/बाल देखभाल
-              छुट्टी)
-            </p>
-            <p className="text-[11px]">
-              (Earned Leave/Half Pay Leave/Extra Ordinary Leave/Commuted
-              Leave/Vacation/Maternity Leave/Paternity Leave/Child Care Leave)
-            </p>
-          </header>
 
-          <div className="overflow-x-auto">
-            <table className="w-full border border-slate-400 text-[12px] text-slate-900">
-              <colgroup>
-                <col className="w-[36%]" />
-                <col />
-              </colgroup>
-              <tbody>
-                <Row
-                  label="1. आवेदक का नाम / Name of the applicant"
-                  inputId="name"
+            <p className="text-right text-[12px] text-slate-900">
+              आवेदक के हस्ताक्षर दिनांक सहित / Signature of the applicant with
+              date: <UnderlineInput id="applicantSignature" width="w-60" />
+            </p>
+
+            <div className="space-y-2 border-t border-slate-400 pt-2 text-[12px] text-slate-900">
+              <p className="font-semibold text-center">
+                नियंत्रक अधिकारी की टिप्पणियाँ एवं सिफारिशें / Remarks and
+                Recommendations of the controlling officer
+              </p>
+              <p>
+                सिफारिश की गई / Recommended या नहीं की गई / not recommended:{" "}
+                <UnderlineInput id="recommended" width="w-44" />
+              </p>
+              <p>
+                विभागाध्यक्ष एवं विभाग प्रमुख के हस्ताक्षर तिथि सहित / Signature
+                with date Head of Department/Section In-charge:
+                <UnderlineInput
+                  id="hodSignature"
+                  width="w-60"
+                  className="ml-2"
                 />
-                <Row label="2. पद नाम / Post held" inputId="post" />
-                <Row
-                  label="3. विभाग/केन्द्रीय कार्यालय/अनुभाग / Department/Office/Section"
-                  inputId="department"
+              </p>
+            </div>
+
+            <div className="space-y-2 border-t border-slate-400 pt-2 text-[12px] text-slate-900">
+              <p className="text-center font-semibold">
+                प्रशासनिक अनुभाग द्वारा प्रयोग हेतु / For use by the
+                Administration Section
+              </p>
+              <p>
+                प्रमाणित किया जाता है कि (प्रकृति) / Certified that (nature of
+                leave) for period, from
+                <UnderlineInput id="adminFrom" width="w-32" /> to{" "}
+                <UnderlineInput id="adminTo" width="w-32" /> is available as per
+                following details:
+              </p>
+              <p>
+                अवकाश का प्रकार / Nature of leave applied for{" "}
+                <UnderlineInput id="adminLeaveType" width="w-44" /> आज की तिथि
+                तक शेष / Balance as on date
+                <UnderlineInput id="balance" width="w-28" /> कुल दिनों के लिए
+                अवकाश / Leave applied for (No. of days)
+                <UnderlineInput id="adminDays" width="w-24" />
+              </p>
+              <p>
+                संबंधित सहायक / Dealing Assistant{" "}
+                <UnderlineInput id="assistant" width="w-44" className="ml-2" />{" "}
+                अधि./सहा. कुलसचिव/अनुभागाध्यक्ष/ सुपdt./AR/DR
+                <UnderlineInput id="arDr" width="w-44" className="ml-2" />{" "}
+                कुलसचिव / Registrar
+                <UnderlineInput id="registrar" width="w-44" className="ml-2" />
+              </p>
+              <p>
+                छुट्टी स्वीकृत करने के लिए सक्षम प्राधिकारी की टिप्पणी: स्वीकृत
+                / अस्वीकृत / Comments of the competent authority to grant leave:
+                Sanctioned / Not Sanctioned
+              </p>
+              <p>
+                कुलसचिव/ डीन (Faculty Affairs & Administration) / Director के
+                हस्ताक्षर / Signature of Registrar / Dean (Faculty Affairs &
+                Administration) / Director:
+                <UnderlineInput
+                  id="authoritySign"
+                  width="w-60"
+                  className="ml-2"
                 />
-                <Row
-                  label="4. अवकाश का प्रकार / Nature of Leave applied for"
-                  inputId="leaveType"
-                />
-                <RowPeriod />
-                <RowPrefixSuffix />
-                <Row label="7. उद्देश्य / Purpose" inputId="purpose" />
-                <Row
-                  label="8. कार्य, प्रशासनिक या अन्य उत्तरदायित्व (यदि कोई हो) के लिए वैकल्पिक व्यवस्था / Alternative arrangements"
-                  inputId="arrangements"
-                />
-                <Row
-                  label="9. मैं एल.टी.सी. लेने हेतु प्रस्तावित करता हूँ / I propose/do not propose to avail myself of Leave Travel Concession during the leave."
-                  inputId="ltc"
-                />
-                <RowAddress />
-                <RowStation />
-              </tbody>
-            </table>
+              </p>
+            </div>
+          </SurfaceCard>
+
+          {missingFields.length > 0 && (
+            <SurfaceCard className="max-w-4xl border border-amber-400 bg-amber-50 text-amber-900">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4" />
+                <div>
+                  <p className="font-semibold text-sm">
+                    Missing required fields
+                  </p>
+                  <ul className="list-disc space-y-1 pl-4 text-xs">
+                    {missingFields.map((field) => (
+                      <li key={field}>{field}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </SurfaceCard>
+          )}
+
+          {previewData && (
+            <SurfaceCard className="max-w-4xl border border-emerald-300 bg-emerald-50 text-emerald-900">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-4 w-4" />
+                <div className="space-y-2">
+                  <p className="font-semibold text-sm">
+                    Review your entries before confirming
+                  </p>
+                  <div className="grid grid-cols-1 gap-1 text-[11px] md:grid-cols-2">
+                    {previewEntries.map(([key, value]) => (
+                      <div key={key} className="flex items-start gap-1">
+                        <span className="font-semibold capitalize">{key}:</span>
+                        <span className="break-words text-slate-800">
+                          {value || "(empty)"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </SurfaceCard>
+          )}
+
+          <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-4 py-3">
+            <div className="text-xs text-slate-600">
+              {confirmed
+                ? "Submission confirmed. You can still edit and resubmit if needed."
+                : previewData
+                  ? "Looks good? Confirm to submit."
+                  : "Fill all fields, then submit to validate."}
+            </div>
+            <div className="flex items-center gap-2">
+              {previewData && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setPreviewData(null);
+                    setConfirmed(false);
+                  }}
+                  className="text-sm"
+                >
+                  Edit
+                </Button>
+              )}
+              <Button
+                type={previewData ? "button" : "submit"}
+                onClick={previewData ? handleConfirm : undefined}
+                className="px-4 text-sm"
+              >
+                {previewData ? "Confirm submit" : "Submit"}
+              </Button>
+            </div>
           </div>
-
-          <p className="text-right text-[12px] text-slate-900">
-            आवेदक के हस्ताक्षर दिनांक सहित / Signature of the applicant with
-            date: <UnderlineInput id="applicantSignature" width="w-60" />
-          </p>
-
-          <div className="space-y-2 border-t border-slate-400 pt-2 text-[12px] text-slate-900">
-            <p className="font-semibold text-center">
-              नियंत्रक अधिकारी की टिप्पणियाँ एवं सिफारिशें / Remarks and
-              Recommendations of the controlling officer
-            </p>
-            <p>
-              सिफारिश की गई / Recommended या नहीं की गई / not recommended:{" "}
-              <UnderlineInput id="recommended" width="w-44" />
-            </p>
-            <p>
-              विभागाध्यक्ष एवं विभाग प्रमुख के हस्ताक्षर तिथि सहित / Signature
-              with date Head of Department/Section In-charge:
-              <UnderlineInput id="hodSignature" width="w-60" className="ml-2" />
-            </p>
-          </div>
-
-          <div className="space-y-2 border-t border-slate-400 pt-2 text-[12px] text-slate-900">
-            <p className="text-center font-semibold">
-              प्रशासनिक अनुभाग द्वारा प्रयोग हेतु / For use by the
-              Administration Section
-            </p>
-            <p>
-              प्रमाणित किया जाता है कि (प्रकृति) / Certified that (nature of
-              leave) for period, from
-              <UnderlineInput id="adminFrom" width="w-32" /> to{" "}
-              <UnderlineInput id="adminTo" width="w-32" /> is available as per
-              following details:
-            </p>
-            <p>
-              अवकाश का प्रकार / Nature of leave applied for{" "}
-              <UnderlineInput id="adminLeaveType" width="w-44" /> आज की तिथि तक
-              शेष / Balance as on date
-              <UnderlineInput id="balance" width="w-28" /> कुल दिनों के लिए
-              अवकाश / Leave applied for (No. of days)
-              <UnderlineInput id="adminDays" width="w-24" />
-            </p>
-            <p>
-              संबंधित सहायक / Dealing Assistant{" "}
-              <UnderlineInput id="assistant" width="w-44" className="ml-2" />{" "}
-              अधि./सहा. कुलसचिव/अनुभागाध्यक्ष/ सुपdt./AR/DR
-              <UnderlineInput id="arDr" width="w-44" className="ml-2" /> कुलसचिव
-              / Registrar
-              <UnderlineInput id="registrar" width="w-44" className="ml-2" />
-            </p>
-            <p>
-              छुट्टी स्वीकृत करने के लिए सक्षम प्राधिकारी की टिप्पणी: स्वीकृत /
-              अस्वीकृत / Comments of the competent authority to grant leave:
-              Sanctioned / Not Sanctioned
-            </p>
-            <p>
-              कुलसचिव/ डीन (Faculty Affairs & Administration) / Director के
-              हस्ताक्षर / Signature of Registrar / Dean (Faculty Affairs &
-              Administration) / Director:
-              <UnderlineInput
-                id="authoritySign"
-                width="w-60"
-                className="ml-2"
-              />
-            </p>
-          </div>
-        </SurfaceCard>
+        </form>
       </div>
     </DashboardShell>
   );

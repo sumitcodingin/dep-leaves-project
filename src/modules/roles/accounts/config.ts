@@ -26,6 +26,13 @@ export const accountsDashboard: RoleDashboardConfig = {
       icon: FileSignature,
     },
     {
+      label: "Leave for Ex-India visit",
+      description: "Four-page application with undertakings (Form I & II).",
+      cta: "Fill the form",
+      href: "/ex-india-leave?returnTo=/dashboard/accounts",
+      icon: FileSignature,
+    },
+    {
       label: "Station leave form",
       description: "Station leave permission request.",
       cta: "Fill the form",
