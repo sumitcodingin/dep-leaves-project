@@ -227,50 +227,58 @@ export const MySubmissionsPanel = () => {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SurfaceCard className="space-y-3 border-slate-200/80 p-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Pending approvals
-          </p>
-          {loading ? (
-            <p className="text-sm text-slate-500">
-              Loading pending requests...
+        {showPending ? (
+          <SurfaceCard className="space-y-3 border-slate-200/80 p-5">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Pending approvals
             </p>
-          ) : pendingItems.length === 0 ? (
-            <p className="text-sm text-slate-500">No pending approvals.</p>
-          ) : (
-            <div className="space-y-2">{pendingItems.map(renderRow)}</div>
-          )}
-        </SurfaceCard>
+            {loading ? (
+              <p className="text-sm text-slate-500">
+                Loading pending requests...
+              </p>
+            ) : pendingItems.length === 0 ? (
+              <p className="text-sm text-slate-500">No pending approvals.</p>
+            ) : (
+              <div className="space-y-2">{pendingItems.map(renderRow)}</div>
+            )}
+          </SurfaceCard>
+        ) : null}
 
-        <SurfaceCard className="space-y-3 border-slate-200/80 p-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Approved submissions
-          </p>
-          {loading ? (
-            <p className="text-sm text-slate-500">
-              Loading previous submissions...
+        {showApproved ? (
+          <SurfaceCard className="space-y-3 border-slate-200/80 p-5">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Approved submissions
             </p>
-          ) : approvedItems.length === 0 ? (
-            <p className="text-sm text-slate-500">No approved submissions.</p>
-          ) : (
-            <div className="space-y-2">{approvedItems.map(renderRow)}</div>
-          )}
-        </SurfaceCard>
+            {loading ? (
+              <p className="text-sm text-slate-500">
+                Loading previous submissions...
+              </p>
+            ) : approvedItems.length === 0 ? (
+              <p className="text-sm text-slate-500">No approved submissions.</p>
+            ) : (
+              <div className="space-y-2">{approvedItems.map(renderRow)}</div>
+            )}
+          </SurfaceCard>
+        ) : null}
 
-        <SurfaceCard className="space-y-3 border-slate-200/80 p-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Rejected / old submissions
-          </p>
-          {loading ? (
-            <p className="text-sm text-slate-500">
-              Loading previous submissions...
+        {showOther ? (
+          <SurfaceCard className="space-y-3 border-slate-200/80 p-5">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Rejected / old submissions
             </p>
-          ) : otherItems.length === 0 ? (
-            <p className="text-sm text-slate-500">No other submissions yet.</p>
-          ) : (
-            <div className="space-y-2">{otherItems.map(renderRow)}</div>
-          )}
-        </SurfaceCard>
+            {loading ? (
+              <p className="text-sm text-slate-500">
+                Loading previous submissions...
+              </p>
+            ) : otherItems.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No other submissions yet.
+              </p>
+            ) : (
+              <div className="space-y-2">{otherItems.map(renderRow)}</div>
+            )}
+          </SurfaceCard>
+        ) : null}
       </div>
 
       <LeaveRequestDetailsModal

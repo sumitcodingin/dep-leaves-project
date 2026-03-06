@@ -16,6 +16,7 @@ const leaveCards: LeaveCard[] = [
     title: "Joining Report",
     description: "Submit rejoining details after sanctioned leave.",
     href: "/joining-report",
+    disabledFor: ["dean", "registrar"],
   },
   {
     title: "Earned Leave",

@@ -16,6 +16,45 @@ import { cn } from "@/lib/utils";
 
 type DialogState = "confirm" | "success" | null;
 
+type JoiningReportHistoryItem = {
+  id: string;
+  referenceCode: string;
+  from: string;
+  to: string;
+  totalDays: number;
+  status: string;
+  submittedAt: string;
+  approver: string;
+};
+
+const ROLE_KEYS = {
+  FACULTY: "FACULTY",
+  STAFF: "STAFF",
+  HOD: "HOD",
+  DEAN: "DEAN",
+  REGISTRAR: "REGISTRAR",
+} as const;
+
+const requiredInputIds = [
+  "name",
+  "fromDate",
+  "toDate",
+  "totalDays",
+  "rejoinDate",
+  "orderNo",
+  "orderDate",
+  "englishRejoin",
+  "englishDays",
+  "englishFrom",
+  "englishTo",
+  "englishOrder",
+  "englishOrderDate",
+  "signature",
+  "signName",
+  "signDesignation",
+  "signedDate",
+];
+
 const UnderlineInput = ({
   id,
   width = "w-44",
@@ -47,6 +86,14 @@ export default function JoiningReportPage() {
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRoleLocked, setIsRoleLocked] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [history, setHistory] = useState<JoiningReportHistoryItem[]>([]);
+  const [workflowMessage, setWorkflowMessage] = useState(
+    "This joining report will be routed automatically after submission.",
+  );
 
   const markMissingInputs = (form: HTMLFormElement, missing: Set<string>) => {
     const inputs = Array.from(form.querySelectorAll<HTMLInputElement>("input"));
@@ -75,7 +122,12 @@ export default function JoiningReportPage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isRoleLocked) {
+      setSubmitError("Joining report form is locked for Dean and Registrar.");
+      return;
+    }
     setConfirmed(false);
+    setSubmitError(null);
     const form = formRef.current;
     if (!form) return;
     const data = Object.fromEntries(new FormData(form)) as Record<
@@ -83,12 +135,7 @@ export default function JoiningReportPage() {
       string
     >;
     saveFormDraft("joining-report", data);
-    const required = Array.from(
-      form.querySelectorAll<HTMLInputElement>("input"),
-    )
-      .map((input) => input.name || input.id)
-      .filter(Boolean);
-    const missing = required.filter((key) => !data[key]?.trim());
+    const missing = requiredInputIds.filter((key) => !data[key]?.trim());
     const missingSet = new Set(missing);
     markMissingInputs(form, missingSet);
     if (missingSet.size > 0) {
@@ -103,15 +150,56 @@ export default function JoiningReportPage() {
 
   useEffect(() => {
     const form = formRef.current;
-    if (!form) return;
+    if (form) {
+      void applyAutofillToForm(form, "joining-report");
+    }
 
-    void applyAutofillToForm(form, "joining-report");
+    void loadBootstrap();
   }, []);
 
-  const handleConfirmSubmit = () => {
-    setConfirmed(true);
-    setDialogState("success");
-    console.log("Joining report submitted", pendingDataRef.current);
+  const handleConfirmSubmit = async () => {
+    setSubmitError(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/joining-report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ form: pendingDataRef.current }),
+      });
+
+      const result = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        data?: {
+          referenceCode?: string;
+          approverName?: string;
+          approverRole?: string;
+          viewerOnly?: boolean;
+        };
+      };
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.message ?? "Unable to submit joining report.");
+      }
+
+      setSubmitMessage(
+        `${result.message ?? "Joining report submitted successfully."}${result.data?.referenceCode ? ` Reference: ${result.data.referenceCode}.` : ""}`,
+      );
+      setConfirmed(true);
+      setDialogState("success");
+      await loadBootstrap();
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Unable to submit joining report.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCloseDialog = () => {
@@ -131,6 +219,96 @@ export default function JoiningReportPage() {
       setIsDownloading(false);
     }
   };
+
+  const loadBootstrap = async () => {
+    const form = formRef.current;
+
+    try {
+      const response = await fetch("/api/joining-report/bootstrap", {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const result = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        data?: {
+          defaults?: Record<string, string>;
+          history?: JoiningReportHistoryItem[];
+        };
+      };
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result.message ?? "Unable to load joining report profile data.",
+        );
+      }
+
+      const defaults = result.data?.defaults ?? {};
+      if (form) {
+        Object.entries(defaults).forEach(([key, value]) => {
+          if (!value) return;
+          const input = form.querySelector<HTMLInputElement>(
+            `input[name="${key}"]`,
+          );
+          if (input && !input.value.trim()) {
+            input.value = value;
+          }
+        });
+      }
+
+      setHistory(result.data?.history ?? []);
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load joining report profile data.",
+      );
+    }
+  };
+
+  useEffect(() => {
+    const roleKeyRaw =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("lf-user-role")
+        : null;
+
+    if (roleKeyRaw === ROLE_KEYS.FACULTY) {
+      setIsRoleLocked(false);
+      setSubmitError(null);
+      setWorkflowMessage(
+        "On submit, your joining report will be forwarded to the HoD of your department for viewing only.",
+      );
+      return;
+    }
+
+    if (roleKeyRaw === ROLE_KEYS.STAFF) {
+      setIsRoleLocked(false);
+      setSubmitError(null);
+      setWorkflowMessage(
+        "On submit, your joining report will be forwarded to the Registrar for viewing only.",
+      );
+      return;
+    }
+
+    if (roleKeyRaw === ROLE_KEYS.HOD) {
+      setIsRoleLocked(false);
+      setSubmitError(null);
+      setWorkflowMessage(
+        "On submit, your joining report will be forwarded to the Dean for approval.",
+      );
+      return;
+    }
+
+    if (roleKeyRaw === ROLE_KEYS.DEAN || roleKeyRaw === ROLE_KEYS.REGISTRAR) {
+      setIsRoleLocked(true);
+      setWorkflowMessage(
+        "Joining report form is locked for Dean and Registrar.",
+      );
+      setSubmitError("Joining report form is locked for Dean and Registrar.");
+      return;
+    }
+  }, [history.length]);
 
   return (
     <DashboardShell>
@@ -286,17 +464,58 @@ export default function JoiningReportPage() {
             </div>
           </SurfaceCard>
 
+          <SurfaceCard className="space-y-2 border-slate-200/80 p-4">
+            <p className="text-sm font-semibold text-slate-900">Routing</p>
+            <p className="text-sm text-slate-600">{workflowMessage}</p>
+          </SurfaceCard>
+
+          {history.length > 0 ? (
+            <SurfaceCard className="space-y-3 border-slate-200/80 p-4">
+              <p className="text-sm font-semibold text-slate-900">
+                Recent joining reports
+              </p>
+              <div className="space-y-2">
+                {history.slice(0, 3).map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-slate-200/80 px-3 py-2 text-xs text-slate-700"
+                  >
+                    <p className="font-semibold text-slate-900">
+                      {item.referenceCode}
+                    </p>
+                    <p>
+                      {new Date(item.from).toLocaleDateString("en-GB")} to{" "}
+                      {new Date(item.to).toLocaleDateString("en-GB")} (
+                      {item.totalDays} days)
+                    </p>
+                    <p>
+                      Status: {item.status} | Routed to: {item.approver}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </SurfaceCard>
+          ) : null}
+
           <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-4 py-3">
             <div className="text-xs text-slate-600">
-              {confirmed
-                ? "Submission confirmed. You can still edit and resubmit if needed."
-                : missingFields.length > 0
-                  ? "Please fill the highlighted fields."
-                  : "Fill all fields, then submit."}
+              {submitError
+                ? submitError
+                : submitMessage
+                  ? submitMessage
+                  : confirmed
+                    ? "Submission confirmed. You can still edit and resubmit if needed."
+                    : missingFields.length > 0
+                      ? "Please fill the highlighted fields."
+                      : "Fill all fields, then submit."}
             </div>
             <div className="flex items-center gap-2">
-              <Button type="submit" className="px-4 text-sm">
-                Submit
+              <Button
+                type="submit"
+                className="px-4 text-sm"
+                disabled={isRoleLocked}
+              >
+                {isRoleLocked ? "Locked" : "Submit"}
               </Button>
             </div>
           </div>
@@ -309,6 +528,7 @@ export default function JoiningReportPage() {
           onConfirm={handleConfirmSubmit}
           onDownload={handleDownloadPdf}
           isDownloading={isDownloading}
+          isSubmitting={isSubmitting}
         />
       </div>
     </DashboardShell>
@@ -427,6 +647,7 @@ const ConfirmationModal = ({
   onConfirm,
   onDownload,
   isDownloading,
+  isSubmitting,
 }: {
   state: DialogState;
   title: string;
@@ -434,6 +655,7 @@ const ConfirmationModal = ({
   onConfirm: () => void;
   onDownload: () => void;
   isDownloading: boolean;
+  isSubmitting: boolean;
 }) => {
   if (!state) return null;
   const isSuccess = state === "success";
@@ -496,8 +718,9 @@ const ConfirmationModal = ({
                 type="button"
                 onClick={onConfirm}
                 className="px-4 text-sm"
+                disabled={isSubmitting}
               >
-                Yes, submit
+                {isSubmitting ? "Submitting..." : "Yes, submit"}
               </Button>
             </>
           )}

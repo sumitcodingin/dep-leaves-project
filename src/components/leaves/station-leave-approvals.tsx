@@ -70,13 +70,15 @@ export const StationLeaveApprovals = ({ role }: { role: string }) => {
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [showPending, setShowPending] = useState(true);
+  const [showHandled, setShowHandled] = useState(true);
 
   const loadItems = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/station-leave/approvals", {
+      const response = await fetch("/api/leaves/approvals", {
         method: "GET",
         cache: "no-store",
       });
@@ -201,16 +203,34 @@ export const StationLeaveApprovals = ({ role }: { role: string }) => {
   return (
     <div className="space-y-6">
       <SurfaceCard className="space-y-2 border-slate-200/80 p-5">
-        <p className="text-xl font-semibold text-slate-900">
-          Station Leave Approvals
-        </p>
+        <p className="text-xl font-semibold text-slate-900">Leave Approvals</p>
         <p className="text-sm text-slate-600">
-          Role: {role.toUpperCase()} | Review pending station leave requests,
-          then approve or reject with remarks.
+          Role: {role.toUpperCase()} | Review submitted leave records, view full
+          details, and approve only where an action is required.
         </p>
       </SurfaceCard>
 
       <SurfaceCard className="space-y-4 border-slate-200/80 p-5">
+        <div className="flex flex-wrap items-center gap-5">
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={showPending}
+              onChange={(event) => setShowPending(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Pending / awaiting view
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={showHandled}
+              onChange={(event) => setShowHandled(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Recently handled
+          </label>
+        </div>
         <div className="grid gap-4 md:grid-cols-3">
           <label className="space-y-2 text-sm text-slate-700">
             <span className="font-medium text-slate-900">Filter by role</span>
@@ -277,137 +297,166 @@ export const StationLeaveApprovals = ({ role }: { role: string }) => {
         </SurfaceCard>
       ) : null}
 
-      <section className="space-y-3">
-        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Pending approvals
-        </p>
-        {loading ? (
-          <SurfaceCard className="p-4 text-sm text-slate-600">
-            Loading requests...
-          </SurfaceCard>
-        ) : pendingItems.length === 0 ? (
-          <SurfaceCard className="p-4 text-sm text-slate-600">
-            No pending station leave approvals mapped to you.
-          </SurfaceCard>
-        ) : (
-          pendingItems.map((item) => (
-            <SurfaceCard
-              key={item.applicationId}
-              className="space-y-3 border-slate-200/80 p-5"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-base font-semibold text-slate-900">
-                    {item.referenceCode}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Applied by {item.applicant.name} ({item.applicant.role}) -{" "}
-                    {item.applicant.department}
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusTone(item.status)}`}
-                >
-                  {item.status}
-                </span>
-              </div>
-
-              <div className="space-y-1 text-sm text-slate-700">
-                <p>
-                  <span className="font-semibold">Leave window:</span>{" "}
-                  {new Date(item.startDate).toLocaleDateString("en-GB")} to{" "}
-                  {new Date(item.endDate).toLocaleDateString("en-GB")} (
-                  {item.totalDays} days)
-                </p>
-                <p>
-                  <span className="font-semibold">Leave type:</span>{" "}
-                  {item.leaveType}
-                </p>
-                <p>
-                  <span className="font-semibold">Purpose:</span> {item.purpose}
-                </p>
-                <p>
-                  <span className="font-semibold">Contact:</span>{" "}
-                  {item.contactDuringLeave || "Not provided"}
-                </p>
-              </div>
-
-              <textarea
-                value={remarksById[item.applicationId] ?? ""}
-                onChange={(event) =>
-                  setRemarksById((prev) => ({
-                    ...prev,
-                    [item.applicationId]: event.target.value,
-                  }))
-                }
-                placeholder="Remarks (optional)"
-                className="min-h-20 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
-              />
-
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => setSelected(item)}
-                  disabled={busyId === item.applicationId}
-                >
-                  View
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => runDecision(item.applicationId, "REJECT")}
-                  disabled={busyId === item.applicationId}
-                >
-                  Reject
-                </Button>
-                <Button
-                  onClick={() => runDecision(item.applicationId, "APPROVE")}
-                  disabled={busyId === item.applicationId}
-                >
-                  {busyId === item.applicationId ? "Saving..." : "Approve"}
-                </Button>
-              </div>
+      {showPending ? (
+        <section className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Pending approvals
+          </p>
+          {loading ? (
+            <SurfaceCard className="p-4 text-sm text-slate-600">
+              Loading requests...
             </SurfaceCard>
-          ))
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Recently handled
-        </p>
-        {loading ? null : handledItems.length === 0 ? (
-          <SurfaceCard className="p-4 text-sm text-slate-600">
-            No handled requests yet.
-          </SurfaceCard>
-        ) : (
-          handledItems.slice(0, 8).map((item) => (
-            <SurfaceCard
-              key={item.applicationId}
-              className="border-slate-200/80 p-4"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-900">
-                  {item.referenceCode}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button variant="secondary" onClick={() => setSelected(item)}>
-                    View
-                  </Button>
+          ) : pendingItems.length === 0 ? (
+            <SurfaceCard className="p-4 text-sm text-slate-600">
+              No pending leave records mapped to you.
+            </SurfaceCard>
+          ) : (
+            pendingItems.map((item) => (
+              <SurfaceCard
+                key={item.applicationId}
+                className="space-y-3 border-slate-200/80 p-5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-base font-semibold text-slate-900">
+                      {item.referenceCode}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Applied by {item.applicant.name} ({item.applicant.role}) -{" "}
+                      {item.applicant.department}
+                    </p>
+                  </div>
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusTone(item.status)}`}
                   >
                     {item.status}
                   </span>
                 </div>
-              </div>
-              <p className="text-xs text-slate-600">
-                {item.applicant.name} | {item.leaveType} | {item.purpose} |{" "}
-                {item.actedAt ? new Date(item.actedAt).toLocaleString() : "-"}
-              </p>
+
+                <div className="space-y-1 text-sm text-slate-700">
+                  <p>
+                    <span className="font-semibold">Leave window:</span>{" "}
+                    {new Date(item.startDate).toLocaleDateString("en-GB")} to{" "}
+                    {new Date(item.endDate).toLocaleDateString("en-GB")} (
+                    {item.totalDays} days)
+                  </p>
+                  <p>
+                    <span className="font-semibold">Leave type:</span>{" "}
+                    {item.leaveType}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Processing mode:</span>{" "}
+                    {item.decisionRequired ? "Approval required" : "View only"}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Purpose:</span>{" "}
+                    {item.purpose}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Contact:</span>{" "}
+                    {item.contactDuringLeave || "Not provided"}
+                  </p>
+                </div>
+
+                {item.decisionRequired ? (
+                  <textarea
+                    value={remarksById[item.applicationId] ?? ""}
+                    onChange={(event) =>
+                      setRemarksById((prev) => ({
+                        ...prev,
+                        [item.applicationId]: event.target.value,
+                      }))
+                    }
+                    placeholder="Remarks (optional)"
+                    className="min-h-20 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+                  />
+                ) : (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                    This record has been routed to you for viewing only. No
+                    approval action is required.
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setSelected(item)}
+                    disabled={busyId === item.applicationId}
+                  >
+                    View
+                  </Button>
+                  {item.decisionRequired ? (
+                    <>
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          runDecision(item.applicationId, "REJECT")
+                        }
+                        disabled={busyId === item.applicationId}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          runDecision(item.applicationId, "APPROVE")
+                        }
+                        disabled={busyId === item.applicationId}
+                      >
+                        {busyId === item.applicationId
+                          ? "Saving..."
+                          : "Approve"}
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
+              </SurfaceCard>
+            ))
+          )}
+        </section>
+      ) : null}
+
+      {showHandled ? (
+        <section className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Recently handled
+          </p>
+          {loading ? null : handledItems.length === 0 ? (
+            <SurfaceCard className="p-4 text-sm text-slate-600">
+              No handled requests yet.
             </SurfaceCard>
-          ))
-        )}
-      </section>
+          ) : (
+            handledItems.slice(0, 8).map((item) => (
+              <SurfaceCard
+                key={item.applicationId}
+                className="border-slate-200/80 p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {item.referenceCode}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setSelected(item)}
+                    >
+                      View
+                    </Button>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusTone(item.status)}`}
+                    >
+                      {item.status}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600">
+                  {item.applicant.name} | {item.leaveType} | {item.purpose} |{" "}
+                  {item.actedAt ? new Date(item.actedAt).toLocaleString() : "-"}
+                </p>
+              </SurfaceCard>
+            ))
+          )}
+        </section>
+      ) : null}
 
       <LeaveRequestDetailsModal
         isOpen={selected !== null}

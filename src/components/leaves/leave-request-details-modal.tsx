@@ -34,6 +34,8 @@ export type LeaveRequestDetails = {
   };
   formData?: Record<string, string> | null;
   approvalTrail?: LeaveApprovalTrailItem[];
+  decisionRequired?: boolean;
+  viewerOnly?: boolean;
 };
 
 const formatFieldLabel = (value: string) =>
@@ -67,6 +69,59 @@ const formatDate = (value: string) => {
   });
 };
 
+const buildProfessionalSummary = (request: LeaveRequestDetails) => {
+  const applicantName = request.applicant?.name ?? "The applicant";
+  const submittedOn = formatDateTime(request.submittedAt);
+  const currentApprover = request.currentApprover
+    ? ` The request is currently with ${request.currentApprover}.`
+    : "";
+
+  if (request.leaveTypeCode === "JR") {
+    const rejoinDate =
+      request.formData?.rejoinDate ?? request.formData?.englishRejoin;
+    const orderNumber =
+      request.formData?.orderNo ?? request.formData?.englishOrder;
+    const orderDate =
+      request.formData?.orderDate ?? request.formData?.englishOrderDate;
+
+    return [
+      `${applicantName} submitted a joining report on ${submittedOn}, confirming rejoining duty on ${rejoinDate || formatDate(request.endDate)} after availing leave from ${formatDate(request.startDate)} to ${formatDate(request.endDate)} for ${request.totalDays} day${request.totalDays === 1 ? "" : "s"}.`,
+      `${request.viewerOnly ? "This report has been forwarded for information only" : "This report has been routed for approval"}${request.currentApprover ? ` to ${request.currentApprover}` : ""}. Office Order reference: ${orderNumber || "not provided"}${orderDate ? ` dated ${orderDate}` : ""}.`,
+    ];
+  }
+
+  return [
+    `${applicantName} submitted a ${request.leaveType.toLowerCase()} request on ${submittedOn} for the period from ${formatDate(request.startDate)} to ${formatDate(request.endDate)}, covering ${request.totalDays} day${request.totalDays === 1 ? "" : "s"}.`,
+    `${request.purpose || "No specific purpose was recorded."}${currentApprover}`,
+  ];
+};
+
+const humanizeFormEntry = (key: string, value: string) => {
+  const label = formatFieldLabel(key);
+  const normalized = key.toLowerCase();
+
+  if (["fromdate", "englishfrom"].includes(normalized)) {
+    return `The leave period started on ${value}.`;
+  }
+  if (["todate", "englishto"].includes(normalized)) {
+    return `The leave period ended on ${value}.`;
+  }
+  if (["totaldays", "englishdays"].includes(normalized)) {
+    return `The duration recorded in the form is ${value} day${value === "1" ? "" : "s"}.`;
+  }
+  if (["rejoindate", "englishrejoin"].includes(normalized)) {
+    return `The applicant reported rejoining duty on ${value}.`;
+  }
+  if (["orderno", "englishorder"].includes(normalized)) {
+    return `The office order reference noted in the form is ${value}.`;
+  }
+  if (["orderdate", "englishorderdate"].includes(normalized)) {
+    return `The office order date recorded in the form is ${value}.`;
+  }
+
+  return `${label}: ${value}.`;
+};
+
 export const LeaveRequestDetailsModal = ({
   isOpen,
   onClose,
@@ -81,6 +136,7 @@ export const LeaveRequestDetailsModal = ({
   const formEntries = Object.entries(request.formData ?? {}).filter(
     ([, value]) => value != null && `${value}`.trim() !== "",
   );
+  const professionalSummary = buildProfessionalSummary(request);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 px-4 py-8">
@@ -128,6 +184,17 @@ export const LeaveRequestDetailsModal = ({
             </p>
           </div>
         </div>
+
+        <section className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Professional summary
+          </p>
+          <div className="space-y-3 rounded-2xl border border-slate-200/80 p-4 text-sm leading-7 text-slate-800">
+            {professionalSummary.map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
+          </div>
+        </section>
 
         {request.applicant ? (
           <section className="space-y-3">
@@ -178,15 +245,11 @@ export const LeaveRequestDetailsModal = ({
         {formEntries.length > 0 ? (
           <section className="space-y-3">
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Submitted form fields
+              Submitted form narrative
             </p>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-3 rounded-2xl border border-slate-200/80 p-4 text-sm leading-7 text-slate-800">
               {formEntries.map(([key, value]) => (
-                <DetailTile
-                  key={key}
-                  label={formatFieldLabel(key)}
-                  value={value}
-                />
+                <p key={key}>{humanizeFormEntry(key, value)}</p>
               ))}
             </div>
           </section>
