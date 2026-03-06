@@ -1,15 +1,15 @@
 import { redirect } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
-import { StationLeaveApprovals } from "@/components/leaves/station-leave-approvals";
+import { LeavesCatalog } from "@/components/leaves/leaves-catalog";
 import { isRoleSlug } from "@/modules/roles";
 import { requireRoleForPage } from "@/server/auth/page-access";
 
-type ApprovalsPageProps = {
+type LeavesPageProps = {
   params: Promise<{ role: string }>;
 };
 
-export default async function ApprovalsPage({ params }: ApprovalsPageProps) {
+export default async function LeavesPage({ params }: LeavesPageProps) {
   const { role } = await params;
 
   if (!isRoleSlug(role)) {
@@ -20,7 +20,7 @@ export default async function ApprovalsPage({ params }: ApprovalsPageProps) {
 
   return (
     <DashboardShell>
-      <StationLeaveApprovals role={role} />
+      <LeavesCatalog role={role} />
     </DashboardShell>
   );
 }

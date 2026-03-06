@@ -12,6 +12,13 @@ export const deanDashboard: RoleDashboardConfig = {
     "Dean is the final stop for most teaching leave unless Director approval is flagged.",
   quickActions: [
     {
+      label: "Station leave approvals",
+      description: "Review and decide station leave requests assigned to Dean.",
+      cta: "Open approvals",
+      href: "/dashboard/dean/approvals",
+      icon: MapPin,
+    },
+    {
       label: "Joining report",
       description: "Record post-leave joining updates from departments.",
       cta: "Fill the form",
@@ -45,13 +52,6 @@ export const deanDashboard: RoleDashboardConfig = {
       cta: "Fill the form",
       href: "/ltc?returnTo=/dashboard/dean",
       icon: FileSignature,
-    },
-    {
-      label: "Station leave form",
-      description: "Station leave permission request.",
-      cta: "Fill the form",
-      href: "/station-leave?returnTo=/dashboard/dean",
-      icon: MapPin,
     },
   ],
   sections: [

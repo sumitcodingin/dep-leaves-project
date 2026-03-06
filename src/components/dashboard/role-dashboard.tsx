@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MySubmissionsPanel } from "@/components/leaves/my-submissions-panel";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SurfaceCard } from "@/components/ui/surface-card";
@@ -110,6 +111,8 @@ export const RoleDashboard = ({ config }: { config: RoleDashboardConfig }) => (
         </SurfaceCard>
       ))}
     </section>
+
+    <MySubmissionsPanel />
 
     {config.reminders && config.reminders.length > 0 && (
       <SurfaceCard className="space-y-3 border-slate-200/80 p-5">

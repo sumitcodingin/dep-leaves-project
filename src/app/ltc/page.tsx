@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -11,6 +11,7 @@ import jsPDF from "jspdf";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { applyAutofillToForm, saveFormDraft } from "@/lib/form-autofill";
 import { cn } from "@/lib/utils";
 
 type DialogState = "confirm" | "success" | null;
@@ -92,6 +93,7 @@ export default function LtcPage() {
       string,
       string
     >;
+    saveFormDraft("ltc", data);
     const required = Array.from(
       form.querySelectorAll<HTMLInputElement>("input"),
     )
@@ -109,6 +111,13 @@ export default function LtcPage() {
     pendingDataRef.current = data;
     setDialogState("confirm");
   };
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+
+    void applyAutofillToForm(form, "ltc");
+  }, []);
 
   const handleConfirmSubmit = () => {
     setConfirmed(true);

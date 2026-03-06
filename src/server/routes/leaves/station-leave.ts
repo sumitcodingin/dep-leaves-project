@@ -35,9 +35,12 @@ const approvalActionSchema = z.object({
 
 const approverRoles = new Set<RoleKey>([
   RoleKey.HOD,
+  RoleKey.DEAN,
   RoleKey.REGISTRAR,
   RoleKey.DIRECTOR,
 ]);
+
+const DIRECTOR_ESCALATION_THRESHOLD_DAYS = 30;
 
 const withStatus = (message: string, status: number) =>
   Object.assign(new Error(message), { status });
@@ -70,8 +73,26 @@ const parseDateInput = (raw?: string | null) => {
 
 const toWorkflowActor = (role: RoleKey): WorkflowActor => {
   if (role === RoleKey.HOD) return WorkflowActor.HOD;
+  if (role === RoleKey.DEAN) return WorkflowActor.DEAN;
   if (role === RoleKey.REGISTRAR) return WorkflowActor.REGISTRAR;
   return WorkflowActor.DIRECTOR;
+};
+
+const findFirstActiveUserByRole = async (role: RoleKey) => {
+  const user = await prisma.user.findFirst({
+    where: { isActive: true, role: { key: role } },
+    include: { role: true },
+  });
+
+  if (!user || !user.role) {
+    throw new Error(`${role} account not found for station leave approval.`);
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    roleKey: user.role.key,
+  };
 };
 
 const stationLeaveReference = () => {
@@ -135,42 +156,35 @@ const resolveApproverForApplicant = async (input: {
   }
 
   if (input.applicantRole === RoleKey.STAFF) {
-    const registrar = await prisma.user.findFirst({
-      where: { isActive: true, role: { key: RoleKey.REGISTRAR } },
-      include: { role: true },
-    });
-
-    if (!registrar || !registrar.role) {
-      throw new Error(
-        "Registrar account not found for station leave approval.",
-      );
-    }
+    const registrar = await findFirstActiveUserByRole(RoleKey.REGISTRAR);
 
     return {
       approverId: registrar.id,
       approverName: registrar.name,
-      approverRole: registrar.role.key,
+      approverRole: registrar.roleKey,
+    };
+  }
+
+  if (input.applicantRole === RoleKey.HOD) {
+    const dean = await findFirstActiveUserByRole(RoleKey.DEAN);
+
+    return {
+      approverId: dean.id,
+      approverName: dean.name,
+      approverRole: dean.roleKey,
     };
   }
 
   if (
-    input.applicantRole === RoleKey.HOD ||
     input.applicantRole === RoleKey.DEAN ||
     input.applicantRole === RoleKey.REGISTRAR
   ) {
-    const director = await prisma.user.findFirst({
-      where: { isActive: true, role: { key: RoleKey.DIRECTOR } },
-      include: { role: true },
-    });
-
-    if (!director || !director.role) {
-      throw new Error("Director account not found for station leave approval.");
-    }
+    const director = await findFirstActiveUserByRole(RoleKey.DIRECTOR);
 
     return {
       approverId: director.id,
       approverName: director.name,
-      approverRole: director.role.key,
+      approverRole: director.roleKey,
     };
   }
 
@@ -277,6 +291,7 @@ export const submitStationLeave = async (
   }
 
   const leaveType = await getStationLeaveType();
+  const director = await findFirstActiveUserByRole(RoleKey.DIRECTOR);
   const approver = await resolveApproverForApplicant({
     applicantId: actor.userId,
     applicantRole: profile.role.key,
@@ -290,6 +305,44 @@ export const submitStationLeave = async (
     new Date();
   const endDate = parseDateInput(parsed.form.to) ?? startDate;
   const totalDays = Math.max(Number.parseInt(parsed.form.days, 10) || 1, 1);
+  const needsDirectorEscalation =
+    totalDays > DIRECTOR_ESCALATION_THRESHOLD_DAYS &&
+    approver.approverRole !== RoleKey.DIRECTOR;
+
+  const stepsToCreate: Prisma.ApprovalStepCreateWithoutLeaveApplicationInput[] =
+    [
+      {
+        sequence: 1,
+        actor: toWorkflowActor(approver.approverRole),
+        status: ApprovalStatus.PENDING,
+        assignedTo: {
+          connect: {
+            id: approver.approverId,
+          },
+        },
+        metadata: {
+          workflowRule: "station-leave-routing-v2",
+        },
+      },
+    ];
+
+  if (needsDirectorEscalation) {
+    stepsToCreate.push({
+      sequence: 2,
+      actor: WorkflowActor.DIRECTOR,
+      status: ApprovalStatus.PENDING,
+      assignedTo: {
+        connect: {
+          id: director.id,
+        },
+      },
+      metadata: {
+        workflowRule: "station-leave-routing-v2",
+        escalationReason: "duration-threshold",
+        thresholdDays: DIRECTOR_ESCALATION_THRESHOLD_DAYS,
+      },
+    });
+  }
 
   const application = await prisma.leaveApplication.create({
     data: {
@@ -304,6 +357,7 @@ export const submitStationLeave = async (
       destination: parsed.form.place,
       stationLeave: true,
       contactDuringLeave: parsed.form.contact,
+      directorApprovalNeeded: needsDirectorEscalation,
       submittedAt: new Date(),
       metadata: {
         formData: parsed.form,
@@ -311,31 +365,29 @@ export const submitStationLeave = async (
           applicantRole: profile.role.key,
           approverRole: approver.approverRole,
           approverName: approver.approverName,
+          directorEscalation: needsDirectorEscalation,
         },
       },
       approvalSteps: {
-        create: {
-          sequence: 1,
-          actor: toWorkflowActor(approver.approverRole),
-          status: ApprovalStatus.PENDING,
-          assignedToId: approver.approverId,
-          metadata: {
-            workflowRule: "station-leave-routing-v1",
-          },
-        },
+        create: stepsToCreate,
       },
     },
   });
 
+  const finalApprovalNote = needsDirectorEscalation
+    ? ` Final approval will additionally route to Director because the request exceeds ${DIRECTOR_ESCALATION_THRESHOLD_DAYS} days.`
+    : "";
+
   return {
     ok: true,
-    message: `Request submitted to ${approver.approverName} (${approver.approverRole}).`,
+    message: `Request submitted to ${approver.approverName} (${approver.approverRole}).${finalApprovalNote}`,
     data: {
       id: application.id,
       referenceCode: application.referenceCode,
       status: application.status,
       approverName: approver.approverName,
       approverRole: approver.approverRole,
+      directorEscalation: needsDirectorEscalation,
     },
   };
 };
@@ -434,7 +486,11 @@ export const decideStationLeaveApproval = async (
       },
     },
     include: {
-      leaveApplication: true,
+      leaveApplication: {
+        include: {
+          approvalSteps: true,
+        },
+      },
     },
   });
 
@@ -445,15 +501,37 @@ export const decideStationLeaveApproval = async (
     );
   }
 
+  const hasPriorPendingStep = step.leaveApplication.approvalSteps.some(
+    (candidate) =>
+      candidate.sequence < step.sequence &&
+      candidate.status !== ApprovalStatus.APPROVED &&
+      candidate.status !== ApprovalStatus.SKIPPED,
+  );
+
+  if (hasPriorPendingStep) {
+    throw withStatus("This request is awaiting an earlier approval step.", 409);
+  }
+
   const now = new Date();
   const stepStatus =
     parsed.decision === "APPROVE"
       ? ApprovalStatus.APPROVED
       : ApprovalStatus.REJECTED;
-  const appStatus =
-    parsed.decision === "APPROVE" ? LeaveStatus.APPROVED : LeaveStatus.REJECTED;
+  const remainingPendingSteps = step.leaveApplication.approvalSteps.some(
+    (candidate) =>
+      candidate.sequence > step.sequence &&
+      (candidate.status === ApprovalStatus.PENDING ||
+        candidate.status === ApprovalStatus.IN_REVIEW),
+  );
 
-  await prisma.$transaction([
+  const appStatus =
+    parsed.decision === "APPROVE"
+      ? remainingPendingSteps
+        ? LeaveStatus.UNDER_REVIEW
+        : LeaveStatus.APPROVED
+      : LeaveStatus.REJECTED;
+
+  const transactionQueries: Prisma.PrismaPromise<unknown>[] = [
     prisma.approvalStep.update({
       where: { id: step.id },
       data: {
@@ -463,14 +541,36 @@ export const decideStationLeaveApproval = async (
         actedAt: now,
       },
     }),
+  ];
+
+  if (parsed.decision === "REJECT") {
+    transactionQueries.push(
+      prisma.approvalStep.updateMany({
+        where: {
+          leaveApplicationId: step.leaveApplicationId,
+          sequence: { gt: step.sequence },
+          status: { in: [ApprovalStatus.PENDING, ApprovalStatus.IN_REVIEW] },
+        },
+        data: {
+          status: ApprovalStatus.SKIPPED,
+          remarks: "Skipped due to rejection at an earlier workflow step.",
+        },
+      }),
+    );
+  }
+
+  transactionQueries.push(
     prisma.leaveApplication.update({
       where: { id: step.leaveApplicationId },
       data: {
         status: appStatus,
-        approvedAt: parsed.decision === "APPROVE" ? now : null,
+        approvedAt:
+          parsed.decision === "APPROVE" && !remainingPendingSteps ? now : null,
       },
     }),
-  ]);
+  );
+
+  await prisma.$transaction(transactionQueries);
 
   return {
     ok: true,

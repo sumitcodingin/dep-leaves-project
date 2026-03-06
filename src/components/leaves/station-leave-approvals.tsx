@@ -66,6 +66,12 @@ export const StationLeaveApprovals = ({ role }: { role: string }) => {
       };
 
       if (!response.ok || !result.ok) {
+        if (response.status === 403) {
+          setItems([]);
+          setError(null);
+          return;
+        }
+
         throw new Error(result.message ?? "Unable to load approvals.");
       }
 
@@ -167,7 +173,7 @@ export const StationLeaveApprovals = ({ role }: { role: string }) => {
           </SurfaceCard>
         ) : pendingItems.length === 0 ? (
           <SurfaceCard className="p-4 text-sm text-slate-600">
-            No pending station leave approvals.
+            No pending station leave approvals mapped to you.
           </SurfaceCard>
         ) : (
           pendingItems.map((item) => (

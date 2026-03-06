@@ -11,6 +11,7 @@ import jsPDF from "jspdf";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { applyAutofillToForm, saveFormDraft } from "@/lib/form-autofill";
 import { cn } from "@/lib/utils";
 
 type DialogState = "confirm" | "success" | null;
@@ -124,6 +125,7 @@ export default function StationLeavePage() {
       string,
       string
     >;
+    saveFormDraft("station-leave", data);
     const missing = requiredInputIds.filter((key) => !data[key]?.trim());
     const missingSet = new Set(missing);
     markMissingInputs(form, missingSet);
@@ -255,8 +257,12 @@ export default function StationLeavePage() {
   };
 
   useEffect(() => {
+    const form = formRef.current;
+    if (form) {
+      void applyAutofillToForm(form, "station-leave");
+    }
+
     void loadBootstrap();
-     
   }, []);
 
   useEffect(() => {
@@ -274,23 +280,26 @@ export default function StationLeavePage() {
 
     if (roleKeyRaw === ROLE_KEYS.STAFF) {
       setWorkflowMessage(
-        "On submit, your station leave goes to Registrar for approval.",
+        "On submit, your station leave goes to Registrar for approval. If duration exceeds 30 days, it additionally routes to Director.",
       );
       return;
     }
 
     if (roleKeyRaw === ROLE_KEYS.FACULTY) {
       setWorkflowMessage(
-        `On submit, your station leave goes to HoD (${department || "same department"}) for approval.`,
+        `On submit, your station leave goes to HoD (${department || "same department"}) for approval. If duration exceeds 30 days, it additionally routes to Director.`,
       );
       return;
     }
 
-    if (
-      roleKeyRaw === ROLE_KEYS.HOD ||
-      roleKeyRaw === ROLE_KEYS.DEAN ||
-      roleKeyRaw === ROLE_KEYS.REGISTRAR
-    ) {
+    if (roleKeyRaw === ROLE_KEYS.HOD) {
+      setWorkflowMessage(
+        "On submit, your station leave goes to Dean for approval. If duration exceeds 30 days, it additionally routes to Director.",
+      );
+      return;
+    }
+
+    if (roleKeyRaw === ROLE_KEYS.DEAN || roleKeyRaw === ROLE_KEYS.REGISTRAR) {
       setWorkflowMessage(
         "On submit, your station leave goes to Director for approval.",
       );

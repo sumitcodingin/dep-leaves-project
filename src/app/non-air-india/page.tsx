@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -11,6 +11,7 @@ import jsPDF from "jspdf";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { applyAutofillToForm, saveFormDraft } from "@/lib/form-autofill";
 import { cn } from "@/lib/utils";
 
 type DialogState = "confirm" | "success" | null;
@@ -81,6 +82,7 @@ export default function NonAirIndiaPage() {
       string,
       string
     >;
+    saveFormDraft("non-air-india", data);
     const required = Array.from(
       form.querySelectorAll<HTMLInputElement>("input"),
     )
@@ -98,6 +100,13 @@ export default function NonAirIndiaPage() {
     pendingDataRef.current = data;
     setDialogState("confirm");
   };
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+
+    void applyAutofillToForm(form, "non-air-india");
+  }, []);
 
   const handleConfirmSubmit = () => {
     setConfirmed(true);

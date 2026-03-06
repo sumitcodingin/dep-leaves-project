@@ -53,13 +53,6 @@ export const registrarDashboard: RoleDashboardConfig = {
       href: "/ltc?returnTo=/dashboard/registrar",
       icon: FileSignature,
     },
-    {
-      label: "Station leave form",
-      description: "Station leave permission request.",
-      cta: "Fill the form",
-      href: "/station-leave?returnTo=/dashboard/registrar",
-      icon: MapPin,
-    },
   ],
   sections: [
     {
