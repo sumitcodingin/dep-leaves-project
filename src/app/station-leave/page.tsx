@@ -1,8 +1,8 @@
 "use client";
 
-import type { FormEvent } from "react";
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import type { FormEvent, InputHTMLAttributes } from "react";
+import { useEffect, useRef, useState, forwardRef } from "react";
+import { ArrowLeft, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import html2canvas from "html2canvas";
@@ -39,38 +39,50 @@ const requiredInputIds = [
   "name",
   "designation",
   "department",
-  "dates",
   "days",
   "from",
   "to",
   "nature",
   "purpose",
-  "contact",
+  "contactPrefix",
+  "contactNumber",
+  "contactAddress",
   "place",
   "date",
   "applicantSign",
 ];
 
-const UnderlineInput = ({
-  id,
-  width = "w-72",
-  className,
-}: {
-  id: string;
-  width?: string;
-  className?: string;
-}) => (
+const UnderlineInput = forwardRef<
+  HTMLInputElement,
+  {
+    id: string;
+    width?: string;
+    className?: string;
+  } & InputHTMLAttributes<HTMLInputElement>
+>(({ id, width = "w-72", className, type = "text", ...props }, ref) => (
   <input
+    ref={ref}
     id={id}
     name={id}
-    type="text"
+    type={type}
     className={cn(
       "border-0 border-b border-dashed border-slate-500 bg-transparent px-1 text-[13px] text-slate-900 focus:border-slate-800 focus:outline-none",
       width,
       className,
     )}
+    {...props}
   />
-);
+));
+UnderlineInput.displayName = "UnderlineInput";
+
+const COUNTRY_CODE_OPTIONS = [
+  { value: "+91", label: "India (+91)" },
+  { value: "+1", label: "USA / Canada (+1)" },
+  { value: "+44", label: "United Kingdom (+44)" },
+  { value: "+61", label: "Australia (+61)" },
+  { value: "+65", label: "Singapore (+65)" },
+  { value: "+971", label: "UAE (+971)" },
+] as const;
 
 export default function StationLeavePage() {
   const router = useRouter();
@@ -92,7 +104,11 @@ export default function StationLeavePage() {
   );
 
   const markMissingInputs = (form: HTMLFormElement, missing: Set<string>) => {
-    const inputs = Array.from(form.querySelectorAll<HTMLInputElement>("input"));
+    const inputs = Array.from(
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+        "input, select",
+      ),
+    );
     inputs.forEach((input) => {
       const key = input.name || input.id;
       const hasError = key ? missing.has(key) : false;
@@ -130,16 +146,57 @@ export default function StationLeavePage() {
       string,
       string
     >;
+    const contactPrefix = (data.contactPrefix ?? "+91").trim();
+    const contactNumber = (data.contactNumber ?? "").replace(/\D/g, "");
+
+    data.contactPrefix = contactPrefix;
+    data.contactNumber = contactNumber;
+    data.contact = `${contactPrefix} ${contactNumber}`.trim();
+
     saveFormDraft("station-leave", data);
     const missing = requiredInputIds.filter((key) => !data[key]?.trim());
-    const missingSet = new Set(missing);
-    markMissingInputs(form, missingSet);
-    if (missingSet.size > 0) {
-      setMissingFields(Array.from(missingSet));
+    const invalid = new Set<string>();
+
+    if (!/^\d+$/.test(data.days ?? "") || Number.parseInt(data.days, 10) < 1) {
+      invalid.add("days");
+    }
+
+    if (!/^\d{10}$/.test(contactNumber)) {
+      invalid.add("contactNumber");
+    }
+
+    const fromDate = data.from ? new Date(`${data.from}T00:00:00`) : null;
+    const toDate = data.to ? new Date(`${data.to}T00:00:00`) : null;
+    if (
+      fromDate &&
+      toDate &&
+      !Number.isNaN(fromDate.getTime()) &&
+      !Number.isNaN(toDate.getTime()) &&
+      toDate < fromDate
+    ) {
+      invalid.add("from");
+      invalid.add("to");
+    }
+
+    const flaggedFields = new Set([...missing, ...invalid]);
+    markMissingInputs(form, flaggedFields);
+
+    if (flaggedFields.size > 0) {
+      setMissingFields(Array.from(flaggedFields));
+      if (invalid.has("days")) {
+        setSubmitError("No. of days must be a whole number greater than 0.");
+      } else if (invalid.has("contactNumber")) {
+        setSubmitError("Phone number must contain exactly 10 digits.");
+      } else if (invalid.has("from") || invalid.has("to")) {
+        setSubmitError(
+          "The To date must be the same as or later than the From date.",
+        );
+      }
       return;
     }
 
     setMissingFields([]);
+    setSubmitError(null);
     pendingDataRef.current = data;
     setDialogState("confirm");
   };
@@ -242,11 +299,11 @@ export default function StationLeavePage() {
       if (form) {
         Object.entries(defaults).forEach(([key, value]) => {
           if (!value) return;
-          const input = form.querySelector<HTMLInputElement>(
-            `input[name="${key}"]`,
-          );
-          if (input && !input.value.trim()) {
-            input.value = value;
+          const field = form.querySelector<
+            HTMLInputElement | HTMLSelectElement
+          >(`[name="${key}"]`);
+          if (field && !field.value.trim()) {
+            field.value = value;
           }
         });
       }
@@ -365,17 +422,7 @@ export default function StationLeavePage() {
               <LineItem number="1." label="Name" inputId="name" />
               <LineItem number="2." label="Designation" inputId="designation" />
               <LineItem number="3." label="Department" inputId="department" />
-              <LineItem
-                number="4."
-                label="Date(s) and Timing(s) for which Station Leave Permission is required"
-                inputId="dates"
-                suffix="No. of days"
-                suffixId="days"
-                secondLine="From"
-                secondId="from"
-                thirdLabel="to"
-                thirdId="to"
-              />
+              <StationLeaveDatesRow />
               <LineItem
                 number="5."
                 label="Nature of Leave sanctioned (if applicable)"
@@ -386,11 +433,7 @@ export default function StationLeavePage() {
                 label="Purpose of the Station Leave Permission"
                 inputId="purpose"
               />
-              <LineItem
-                number="7."
-                label="Contact Number(s) and Address during station leave"
-                inputId="contact"
-              />
+              <StationLeaveContactRow />
             </div>
 
             <div className="space-y-2 text-[13px] text-slate-900">
@@ -736,5 +779,125 @@ const LineItem = ({
         ) : null}
       </div>
     ) : null}
+  </div>
+);
+
+const StationLeaveDatesRow = () => (
+  <div className="space-y-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-6">4.</span>
+      <span className="flex-1">
+        Dates for which Station Leave Permission is required
+      </span>
+    </div>
+    <div className="flex flex-wrap items-center gap-3 pl-8">
+      <div className="flex items-center gap-2">
+        <span>From</span>
+        <DateUnderlineInput id="from" />
+      </div>
+      <div className="flex items-center gap-2">
+        <span>To</span>
+        <DateUnderlineInput id="to" />
+      </div>
+      <div className="flex items-center gap-2">
+        <span>No. of days</span>
+        <NumberStepperInput id="days" />
+      </div>
+    </div>
+  </div>
+);
+
+const DateUnderlineInput = ({ id }: { id: string }) => (
+  <UnderlineInput id={id} type="date" width="w-40" className="scheme-light" />
+);
+
+const NumberStepperInput = ({ id }: { id: string }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const updateValue = (direction: "up" | "down") => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    if (direction === "up") {
+      input.stepUp();
+    } else if (Number.parseInt(input.value || "1", 10) > 1) {
+      input.stepDown();
+    }
+
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  return (
+    <div className="flex items-center gap-1 rounded-full border border-slate-300 px-1 py-0.5">
+      <button
+        type="button"
+        onClick={() => updateValue("down")}
+        className="rounded-full p-1 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+        aria-label="Decrease number of days"
+      >
+        <Minus className="h-3.5 w-3.5" />
+      </button>
+      <UnderlineInput
+        ref={inputRef}
+        id={id}
+        type="number"
+        min={1}
+        step={1}
+        defaultValue="1"
+        inputMode="numeric"
+        width="w-14"
+        className="text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        onClick={() => updateValue("up")}
+        className="rounded-full p-1 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+        aria-label="Increase number of days"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+};
+
+const StationLeaveContactRow = () => (
+  <div className="space-y-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-6">7.</span>
+      <span className="flex-1">
+        Contact number and address during station leave
+      </span>
+    </div>
+    <div className="flex flex-wrap items-center gap-3 pl-8">
+      <select
+        id="contactPrefix"
+        name="contactPrefix"
+        defaultValue="+91"
+        className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-slate-800 focus:outline-none"
+      >
+        {COUNTRY_CODE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <UnderlineInput
+        id="contactNumber"
+        type="tel"
+        width="w-40"
+        inputMode="numeric"
+        pattern="[0-9]{10}"
+        maxLength={10}
+        placeholder="10-digit mobile"
+        onInput={(event) => {
+          const target = event.currentTarget;
+          target.value = target.value.replace(/\D/g, "").slice(0, 10);
+        }}
+      />
+    </div>
+    <div className="flex flex-wrap items-center gap-2 pl-8">
+      <span>Address</span>
+      <UnderlineInput id="contactAddress" className="flex-1" />
+    </div>
   </div>
 );
