@@ -24,11 +24,13 @@ const applyValue = (
 ) => {
   if (!isNonEmpty(value)) return;
 
-  const input = form.querySelector<HTMLInputElement>(`input[name="${field}"]`);
-  if (!input) return;
+  const element = form.querySelector<
+    HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+  >(`[name="${field}"]`);
+  if (!element) return;
 
-  if (!overwrite && isNonEmpty(input.value)) return;
-  input.value = value;
+  if (!overwrite && isNonEmpty(element.value)) return;
+  element.value = value;
 };
 
 const applyMany = (

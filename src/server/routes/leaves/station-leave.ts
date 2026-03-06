@@ -15,13 +15,30 @@ const stationLeavePayloadSchema = z.object({
     name: z.string().trim().min(1),
     designation: z.string().trim().min(1),
     department: z.string().trim().min(1),
-    dates: z.string().trim().min(1),
-    days: z.string().trim().min(1),
-    from: z.string().trim().min(1),
-    to: z.string().trim().min(1),
+    days: z
+      .string()
+      .trim()
+      .regex(/^\d+$/)
+      .refine((value) => Number.parseInt(value, 10) > 0),
+    from: z
+      .string()
+      .trim()
+      .refine((value) => parseDateInput(value) !== null),
+    to: z
+      .string()
+      .trim()
+      .refine((value) => parseDateInput(value) !== null),
     nature: z.string().trim().min(1),
     purpose: z.string().trim().min(1),
-    contact: z.string().trim().min(1),
+    contactPrefix: z
+      .string()
+      .trim()
+      .regex(/^\+\d{1,4}$/),
+    contactNumber: z
+      .string()
+      .trim()
+      .regex(/^\d{10}$/),
+    contactAddress: z.string().trim().min(1),
     place: z.string().trim().min(1),
     date: z.string().trim().min(1),
     applicantSign: z.string().trim().min(1),
@@ -34,6 +51,7 @@ const approvalActionSchema = z.object({
 });
 
 const DIRECTOR_ESCALATION_THRESHOLD_DAYS = 30;
+const DEFAULT_COUNTRY_CODE = "+91";
 
 const lockedApplicantRoles = new Set<RoleKey>([
   RoleKey.DEAN,
@@ -108,6 +126,41 @@ const findFirstActiveUserByRole = async (role: RoleKey) => {
 const stationLeaveReference = () => {
   const year = new Date().getFullYear();
   return `SL-${year}-${randomUUID().slice(0, 8).toUpperCase()}`;
+};
+
+const splitStoredContact = (input?: string | null) => {
+  const value = input?.trim() ?? "";
+  if (!value) {
+    return {
+      contactPrefix: DEFAULT_COUNTRY_CODE,
+      contactNumber: "",
+    };
+  }
+
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const structuredMatch = normalized.match(/^(\+\d{1,4})\s*(\d{10})/);
+  if (structuredMatch) {
+    return {
+      contactPrefix: structuredMatch[1],
+      contactNumber: structuredMatch[2],
+    };
+  }
+
+  const digits = normalized.replace(/\D/g, "");
+  if (digits.length >= 10) {
+    const contactNumber = digits.slice(-10);
+    const prefixDigits = digits.slice(0, -10);
+
+    return {
+      contactPrefix: prefixDigits ? `+${prefixDigits}` : DEFAULT_COUNTRY_CODE,
+      contactNumber,
+    };
+  }
+
+  return {
+    contactPrefix: DEFAULT_COUNTRY_CODE,
+    contactNumber: digits,
+  };
 };
 
 const getStationLeaveType = async () => {
@@ -289,20 +342,28 @@ export const getStationLeaveBootstrap = async (actor: SessionActor) => {
 
   const latestMetadata =
     (history[0]?.metadata as Prisma.JsonObject | null)?.formData ?? null;
+  const latestFormData =
+    typeof latestMetadata === "object" && latestMetadata
+      ? (latestMetadata as Record<string, unknown>)
+      : null;
+  const storedContact = splitStoredContact(
+    latestFormData ? String(latestFormData.contact ?? "") : profile.phone,
+  );
 
   const defaults = {
     name: profile.name ?? "",
     designation: profile.designation ?? "",
     department: profile.department?.name ?? "",
-    contact:
-      profile.phone ??
-      (typeof latestMetadata === "object" && latestMetadata
-        ? String((latestMetadata as Record<string, unknown>).contact ?? "")
-        : ""),
-    place:
-      typeof latestMetadata === "object" && latestMetadata
-        ? String((latestMetadata as Record<string, unknown>).place ?? "")
-        : "",
+    contactPrefix: latestFormData
+      ? String(latestFormData.contactPrefix ?? storedContact.contactPrefix)
+      : storedContact.contactPrefix,
+    contactNumber: latestFormData
+      ? String(latestFormData.contactNumber ?? storedContact.contactNumber)
+      : storedContact.contactNumber,
+    contactAddress: latestFormData
+      ? String(latestFormData.contactAddress ?? "")
+      : "",
+    place: latestFormData ? String(latestFormData.place ?? "") : "",
     date: new Date().toLocaleDateString("en-GB"),
   };
 
@@ -368,7 +429,14 @@ export const submitStationLeave = async (
     parseDateInput(parsed.form.date) ??
     new Date();
   const endDate = parseDateInput(parsed.form.to) ?? startDate;
+  if (endDate < startDate) {
+    throw new Error(
+      "The To date must be the same as or later than the From date.",
+    );
+  }
+
   const totalDays = Math.max(Number.parseInt(parsed.form.days, 10) || 1, 1);
+  const contactDuringLeave = `${parsed.form.contactPrefix} ${parsed.form.contactNumber} | ${parsed.form.contactAddress}`;
   const needsDirectorEscalation =
     totalDays > DIRECTOR_ESCALATION_THRESHOLD_DAYS &&
     approver.approverRole !== RoleKey.DIRECTOR;
@@ -420,11 +488,14 @@ export const submitStationLeave = async (
       purpose: parsed.form.purpose,
       destination: parsed.form.place,
       stationLeave: true,
-      contactDuringLeave: parsed.form.contact,
+      contactDuringLeave,
       directorApprovalNeeded: needsDirectorEscalation,
       submittedAt: new Date(),
       metadata: {
-        formData: parsed.form,
+        formData: {
+          ...parsed.form,
+          contact: contactDuringLeave,
+        },
         routing: {
           applicantRole: profile.role.key,
           approverRole: approver.approverRole,
