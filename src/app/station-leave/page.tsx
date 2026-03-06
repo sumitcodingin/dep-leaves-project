@@ -83,6 +83,7 @@ export default function StationLeavePage() {
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRoleLocked, setIsRoleLocked] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [history, setHistory] = useState<StationLeaveHistoryItem[]>([]);
@@ -117,6 +118,10 @@ export default function StationLeavePage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isRoleLocked) {
+      setSubmitError("Station leave form is locked for Dean and Registrar.");
+      return;
+    }
     setConfirmed(false);
     setSubmitError(null);
     const form = formRef.current;
@@ -300,11 +305,16 @@ export default function StationLeavePage() {
     }
 
     if (roleKeyRaw === ROLE_KEYS.DEAN || roleKeyRaw === ROLE_KEYS.REGISTRAR) {
+      setIsRoleLocked(true);
       setWorkflowMessage(
-        "On submit, your station leave goes to Director for approval.",
+        "Station leave form is locked for Dean and Registrar.",
       );
+      setSubmitError("Station leave form is locked for Dean and Registrar.");
       return;
     }
+
+    setIsRoleLocked(false);
+    setSubmitError(null);
   }, [history.length]);
 
   return (
@@ -466,8 +476,12 @@ export default function StationLeavePage() {
                       : "Fill all fields, then submit."}
             </div>
             <div className="flex items-center gap-2">
-              <Button type="submit" className="px-4 text-sm">
-                Submit
+              <Button
+                type="submit"
+                className="px-4 text-sm"
+                disabled={isRoleLocked}
+              >
+                {isRoleLocked ? "Locked" : "Submit"}
               </Button>
             </div>
           </div>

@@ -33,14 +33,12 @@ const approvalActionSchema = z.object({
   remarks: z.string().trim().max(500).optional(),
 });
 
-const approverRoles = new Set<RoleKey>([
-  RoleKey.HOD,
+const DIRECTOR_ESCALATION_THRESHOLD_DAYS = 30;
+
+const lockedApplicantRoles = new Set<RoleKey>([
   RoleKey.DEAN,
   RoleKey.REGISTRAR,
-  RoleKey.DIRECTOR,
 ]);
-
-const DIRECTOR_ESCALATION_THRESHOLD_DAYS = 30;
 
 const withStatus = (message: string, status: number) =>
   Object.assign(new Error(message), { status });
@@ -73,9 +71,21 @@ const parseDateInput = (raw?: string | null) => {
 
 const toWorkflowActor = (role: RoleKey): WorkflowActor => {
   if (role === RoleKey.HOD) return WorkflowActor.HOD;
+  if (role === RoleKey.ASSOCIATE_HOD) return WorkflowActor.ASSOCIATE_HOD;
   if (role === RoleKey.DEAN) return WorkflowActor.DEAN;
   if (role === RoleKey.REGISTRAR) return WorkflowActor.REGISTRAR;
   return WorkflowActor.DIRECTOR;
+};
+
+const looksLikeDepartmentHod = (input: {
+  name?: string | null;
+  designation?: string | null;
+}) => {
+  const haystack = `${input.name ?? ""} ${input.designation ?? ""}`
+    .trim()
+    .toLowerCase();
+
+  return haystack.includes("hod") || haystack.includes("head of department");
 };
 
 const findFirstActiveUserByRole = async (role: RoleKey) => {
@@ -120,38 +130,91 @@ const resolveApproverForApplicant = async (input: {
   reportsToId: string | null;
 }) => {
   if (input.applicantRole === RoleKey.FACULTY) {
-    let hod = input.departmentId
-      ? await prisma.user.findFirst({
+    const departmentApprovers = input.departmentId
+      ? await prisma.user.findMany({
           where: {
             isActive: true,
             departmentId: input.departmentId,
-            role: { key: RoleKey.HOD },
+            role: {
+              key: {
+                in: [RoleKey.HOD, RoleKey.ASSOCIATE_HOD],
+              },
+            },
+          },
+          include: { role: true },
+        })
+      : [];
+
+    const departmentApprover =
+      departmentApprovers.find(
+        (candidate) => candidate.role?.key === RoleKey.HOD,
+      ) ??
+      departmentApprovers.find(
+        (candidate) => candidate.role?.key === RoleKey.ASSOCIATE_HOD,
+      ) ??
+      null;
+
+    const reportingManager = input.reportsToId
+      ? await prisma.user.findFirst({
+          where: {
+            id: input.reportsToId,
+            isActive: true,
           },
           include: { role: true },
         })
       : null;
 
-    if (!hod && input.reportsToId) {
-      hod = await prisma.user.findFirst({
-        where: {
-          id: input.reportsToId,
-          isActive: true,
-          role: { key: RoleKey.HOD },
-        },
-        include: { role: true },
-      });
-    }
+    const inferredDepartmentHod =
+      !departmentApprover && input.departmentId
+        ? await prisma.user.findFirst({
+            where: {
+              isActive: true,
+              departmentId: input.departmentId,
+              OR: [
+                { name: { contains: "hod", mode: "insensitive" } },
+                {
+                  designation: {
+                    contains: "hod",
+                    mode: "insensitive",
+                  },
+                },
+                {
+                  designation: {
+                    contains: "head of department",
+                    mode: "insensitive",
+                  },
+                },
+              ],
+            },
+            include: { role: true },
+          })
+        : null;
 
-    if (!hod || !hod.role) {
+    const fallbackApprover =
+      departmentApprover ??
+      (reportingManager &&
+      (!input.departmentId ||
+        reportingManager.departmentId === input.departmentId) &&
+      (reportingManager.role?.key === RoleKey.HOD ||
+        reportingManager.role?.key === RoleKey.ASSOCIATE_HOD ||
+        looksLikeDepartmentHod(reportingManager))
+        ? reportingManager
+        : null) ??
+      inferredDepartmentHod;
+
+    if (!fallbackApprover) {
       throw new Error(
         "No HoD found for this faculty member's department. Please contact admin.",
       );
     }
 
     return {
-      approverId: hod.id,
-      approverName: hod.name,
-      approverRole: hod.role.key,
+      approverId: fallbackApprover.id,
+      approverName: fallbackApprover.name,
+      approverRole:
+        fallbackApprover.role?.key === RoleKey.ASSOCIATE_HOD
+          ? RoleKey.ASSOCIATE_HOD
+          : RoleKey.HOD,
     };
   }
 
@@ -175,25 +238,19 @@ const resolveApproverForApplicant = async (input: {
     };
   }
 
-  if (
-    input.applicantRole === RoleKey.DEAN ||
-    input.applicantRole === RoleKey.REGISTRAR
-  ) {
-    const director = await findFirstActiveUserByRole(RoleKey.DIRECTOR);
-
-    return {
-      approverId: director.id,
-      approverName: director.name,
-      approverRole: director.roleKey,
-    };
-  }
-
   throw new Error(
-    "Station leave workflow is only configured for staff, faculty, HoD, Dean, and Registrar applicants.",
+    "Station leave workflow is only configured for Faculty, Staff, and HoD applicants.",
   );
 };
 
 export const getStationLeaveBootstrap = async (actor: SessionActor) => {
+  if (lockedApplicantRoles.has(actor.roleKey)) {
+    throw withStatus(
+      "Station leave form is locked for Dean and Registrar.",
+      403,
+    );
+  }
+
   const [profile, leaveType] = await Promise.all([
     prisma.user.findUnique({
       where: { id: actor.userId },
@@ -276,6 +333,13 @@ export const submitStationLeave = async (
   payload: unknown,
   actor: SessionActor,
 ) => {
+  if (lockedApplicantRoles.has(actor.roleKey)) {
+    throw withStatus(
+      "Station leave form is locked for Dean and Registrar.",
+      403,
+    );
+  }
+
   const parsed = stationLeavePayloadSchema.parse(payload);
 
   const profile = await prisma.user.findUnique({
@@ -393,10 +457,6 @@ export const submitStationLeave = async (
 };
 
 export const getStationLeaveApprovals = async (actor: SessionActor) => {
-  if (!approverRoles.has(actor.roleKey)) {
-    throw withStatus("Approvals are not available for this role.", 403);
-  }
-
   const steps = await prisma.approvalStep.findMany({
     where: {
       assignedToId: actor.userId,
@@ -469,10 +529,6 @@ export const decideStationLeaveApproval = async (
   payload: unknown,
   actor: SessionActor,
 ) => {
-  if (!approverRoles.has(actor.roleKey)) {
-    throw withStatus("Approvals are not available for this role.", 403);
-  }
-
   const parsed = approvalActionSchema.parse(payload);
 
   const step = await prisma.approvalStep.findFirst({
