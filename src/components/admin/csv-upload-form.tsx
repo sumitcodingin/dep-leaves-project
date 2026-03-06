@@ -64,7 +64,7 @@ const parseCsv = (contents: string): ParsedUser[] => {
   return records;
 };
 
-export const CsvUploadForm = ({ adminEmail }: { adminEmail: string }) => {
+export const CsvUploadForm = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusTone, setStatusTone] = useState<"success" | "error" | null>(
     null,
@@ -90,7 +90,7 @@ export const CsvUploadForm = ({ adminEmail }: { adminEmail: string }) => {
       const response = await fetch("/api/admin/users/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requesterEmail: adminEmail, users: parsed }),
+        body: JSON.stringify({ users: parsed }),
       });
 
       const data = (await response.json()) as { ok: boolean; message: string };
@@ -132,7 +132,7 @@ export const CsvUploadForm = ({ adminEmail }: { adminEmail: string }) => {
             type="file"
             accept=".csv"
             className="hidden"
-            disabled={isUploading || !adminEmail}
+            disabled={isUploading}
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) {

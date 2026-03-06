@@ -23,7 +23,7 @@ const manualUserSchema = z.object({
 
 export type ManualUserFormValues = z.infer<typeof manualUserSchema>;
 
-export const ManualUserForm = ({ adminEmail }: { adminEmail: string }) => {
+export const ManualUserForm = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusTone, setStatusTone] = useState<"success" | "error" | null>(
     null,
@@ -43,14 +43,11 @@ export const ManualUserForm = ({ adminEmail }: { adminEmail: string }) => {
   });
 
   const onSubmit = form.handleSubmit(async (values) => {
-    if (!adminEmail) return;
-
     setStatusMessage(null);
     setStatusTone(null);
 
     try {
       const payload = {
-        requesterEmail: adminEmail,
         user: {
           ...values,
           email: values.email.trim().toLowerCase(),
@@ -189,7 +186,7 @@ export const ManualUserForm = ({ adminEmail }: { adminEmail: string }) => {
         <Button
           type="submit"
           className="w-full"
-          disabled={!adminEmail || form.formState.isSubmitting}
+          disabled={form.formState.isSubmitting}
         >
           {form.formState.isSubmitting ? "Saving user..." : "Add user"}
         </Button>

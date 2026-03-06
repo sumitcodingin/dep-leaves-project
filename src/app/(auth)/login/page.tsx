@@ -1,9 +1,25 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 
 import { OtpForm } from "@/components/auth/otp-form";
+import {
+  SESSION_COOKIE_NAME,
+  requireSessionActor,
+} from "@/server/auth/session";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+
+  if (token) {
+    try {
+      const actor = await requireSessionActor(token);
+      redirect(`/dashboard/${actor.roleSlug}`);
+    } catch {}
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-8 py-10">
       <div className="space-y-3 text-center">

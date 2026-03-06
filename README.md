@@ -17,6 +17,7 @@ LeaveFlow is the new digital cockpit for IIT Ropar’s leave, LTC and travel per
 npm install
 cp .env.example .env
 # fill DATABASE_URL / email SMTP settings (Supabase recommended)
+# set AUTH_SECRET to a strong random value (required for session signing)
 
 npm run prisma:generate
 npm run db:push           # creates tables in the target database
@@ -36,6 +37,8 @@ Visit <http://localhost:3000> for the dashboard mock and <http://localhost:3000/
 | `NEXT_PUBLIC_OTP_MINUTES`     | Client hint for OTP expiry (mirrors server value).                                                       |
 | `EMAIL_*` vars                | SMTP credentials for Nodemailer. When omitted the server logs OTPs to the console for local development. |
 | `OTP_EXP_MINUTES`             | Server-side expiry enforcement for OTP tokens.                                                           |
+| `AUTH_SECRET`                 | HMAC signing secret for HTTP-only session cookies. Keep this long and private.                           |
+| `AUTH_SESSION_SECONDS`        | Session lifetime in seconds (default `43200` = 12 hours).                                                |
 
 See `.env.example` for defaults.
 

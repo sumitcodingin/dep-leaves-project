@@ -13,29 +13,14 @@ const baseUserSchema = z.object({
   isTeaching: z.boolean().optional(),
 });
 
-const requesterSchema = z.object({ requesterEmail: z.string().email() });
-
-const createSchema = requesterSchema.extend({ user: baseUserSchema });
-const importSchema = requesterSchema.extend({
+const createSchema = z.object({ user: baseUserSchema });
+const importSchema = z.object({
   users: z.array(baseUserSchema).min(1).max(200),
 });
 
 type HandlerResult = {
   status: number;
   body: { ok: boolean; message: string };
-};
-
-const ensureAdmin = async (email: string) => {
-  const adminUser = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
-    include: { role: true },
-  });
-
-  if (!adminUser || adminUser.role?.key !== RoleKey.ADMIN) {
-    return null;
-  }
-
-  return adminUser;
 };
 
 const resolveDepartmentId = async (code?: string | null) => {
@@ -83,14 +68,6 @@ export const createUserHandler = async (
 ): Promise<HandlerResult> => {
   try {
     const data = createSchema.parse(payload);
-    const adminUser = await ensureAdmin(data.requesterEmail);
-
-    if (!adminUser) {
-      return {
-        status: 403,
-        body: { ok: false, message: "Only portal admins can add users." },
-      };
-    }
 
     await createUserRecord(data.user);
 
@@ -121,14 +98,6 @@ export const importUsersHandler = async (
 ): Promise<HandlerResult> => {
   try {
     const data = importSchema.parse(payload);
-    const adminUser = await ensureAdmin(data.requesterEmail);
-
-    if (!adminUser) {
-      return {
-        status: 403,
-        body: { ok: false, message: "Only portal admins can import users." },
-      };
-    }
 
     const successes: string[] = [];
     const failures: string[] = [];

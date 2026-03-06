@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { RoleSlug } from "@/modules/roles";
 import { verifyOtp } from "@/server/auth/otp";
+import { createSessionToken } from "@/server/auth/session";
 import { prisma } from "@/server/db/prisma";
 
 const verifySchema = z.object({
@@ -34,6 +35,7 @@ const resolveRoleKey = (
 
 type VerifyHandlerResponse = {
   status: number;
+  sessionToken?: string;
   body:
     | {
         ok: true;
@@ -132,9 +134,14 @@ export const verifyOtpHandler = async (
 
     const resolvedRoleKey = resolveRoleKey(user.role?.key, user.isTeaching);
     const roleSlug = roleSlugMap[resolvedRoleKey];
+    const sessionToken = createSessionToken({
+      userId: user.id,
+      roleKey: resolvedRoleKey,
+    });
 
     return {
       status: 200,
+      sessionToken,
       body: {
         ok: true,
         message: "Signed in successfully.",
