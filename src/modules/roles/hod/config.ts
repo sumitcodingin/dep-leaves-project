@@ -11,6 +11,13 @@ export const hodDashboard: RoleDashboardConfig = {
   helper: "HoD approvals precede Dean/Director for teaching staff.",
   quickActions: [
     {
+      label: "Station leave approvals",
+      description: "Review and decide station leave requests assigned to HoD.",
+      cta: "Open approvals",
+      href: "/dashboard/hod/approvals",
+      icon: MapPin,
+    },
+    {
       label: "Joining report",
       description: "Confirm faculty have resumed duties after leave.",
       cta: "Fill the form",

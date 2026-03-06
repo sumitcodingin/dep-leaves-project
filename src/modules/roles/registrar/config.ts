@@ -11,6 +11,14 @@ export const registrarDashboard: RoleDashboardConfig = {
   helper: "Staff leave always lands here after the reporting officer stage.",
   quickActions: [
     {
+      label: "Station leave approvals",
+      description:
+        "Review and decide station leave requests assigned to Registrar.",
+      cta: "Open approvals",
+      href: "/dashboard/registrar/approvals",
+      icon: MapPin,
+    },
+    {
       label: "Joining report",
       description: "Capture joining confirmations for staff cases.",
       cta: "Fill the form",

@@ -29,7 +29,7 @@ const UnderlineInput = ({
     name={id}
     type="text"
     className={cn(
-      "border-0 border-b border-dashed border-slate-400 bg-transparent px-1 text-sm text-slate-900 focus:border-slate-800 focus:outline-none",
+      "inline-block align-baseline border-0 border-b border-dashed border-slate-400 bg-transparent px-1 pt-0 pb-0.5 text-sm leading-[1.05rem] text-slate-900 focus:border-slate-800 focus:outline-none",
       width,
       className,
     )}
@@ -135,16 +135,22 @@ export default function JoiningReportPage() {
         </Button>
 
         <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-          <SurfaceCard className="space-y-5 border-slate-200/80 bg-white p-6 md:p-8">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="flex items-center gap-4">
-                <Image
-                  src="/iit_ropar.png"
-                  alt="IIT Ropar"
-                  width={64}
-                  height={64}
-                  className="object-contain"
-                />
+          <SurfaceCard className="mx-auto max-w-3xl space-y-5 border-slate-200/80 bg-white p-6 md:p-10">
+            <div className="flex flex-col items-center gap-3 text-center md:text-left">
+              <div className="flex flex-wrap items-center justify-center gap-4 md:flex-nowrap md:justify-start">
+                <div
+                  className="flex items-center justify-center bg-white rounded-full border border-slate-200 p-2"
+                  style={{ minWidth: 120, minHeight: 120 }}
+                >
+                  <Image
+                    src="/iit_ropar.png"
+                    alt="IIT Ropar"
+                    width={120}
+                    height={120}
+                    priority
+                    className="object-contain w-full h-full"
+                  />
+                </div>
                 <div className="space-y-1 text-slate-900">
                   <p className="text-lg font-semibold">
                     भारतीय प्रौद्योगिकी संस्थान रोपड़
@@ -178,61 +184,70 @@ export default function JoiningReportPage() {
             <div className="space-y-4 text-sm leading-relaxed text-slate-900">
               <p>महोदय / Sir,</p>
 
-              <p className="space-y-2">
-                <span>मैं,</span> <UnderlineInput id="name" width="w-56" />
-                <span>दिनांक</span>{" "}
+              <p className="flex flex-wrap items-center gap-2 leading-relaxed">
+                <span>मैं,</span>
+                <UnderlineInput id="name" width="w-56" />
+                <span>दिनांक</span>
                 <UnderlineInput id="fromDate" width="w-28" />
-                <span>से</span> <UnderlineInput id="toDate" width="w-28" />
-                <span>तक</span> <UnderlineInput id="totalDays" width="w-16" />
+                <span>से</span>
+                <UnderlineInput id="toDate" width="w-28" />
+                <span>तक</span>
+                <UnderlineInput id="totalDays" width="w-16" />
                 <span>
                   दिन की अर्जित छुट्टी / अर्ध वेतन छुट्टी / चिकित्सक छुट्टी /
                   असाधारण छुट्टी / सत्र की समाप्ति पर छुट्टी के पश्चात
                 </span>
               </p>
 
-              <p>
-                आज दिनांक <UnderlineInput id="rejoinDate" width="w-28" /> को
-                पूर्वाह्न / अपराह्न को अपना कार्यग्रहण प्रतिवेदन जमा कर रहा /
-                रही हूँ, जो की कार्यालय आदेश सं.
-                <UnderlineInput id="orderNo" width="w-48" /> दिनांक
-                <UnderlineInput id="orderDate" width="w-28" /> के द्वारा स्वीकृत
-                किया था।
+              <p className="flex flex-wrap items-center gap-2 leading-relaxed">
+                <span>आज दिनांक</span>
+                <UnderlineInput id="rejoinDate" width="w-28" />
+                <span>
+                  को पूर्वाह्न / अपराह्न को अपना कार्यग्रहण प्रतिवेदन जमा कर रहा
+                  / रही हूँ, जो की कार्यालय आदेश सं.
+                </span>
+                <UnderlineInput id="orderNo" width="w-48" />
+                <span>दिनांक</span>
+                <UnderlineInput id="orderDate" width="w-28" />
+                <span>के द्वारा स्वीकृत किया था।</span>
               </p>
 
-              <p>
-                I, hereby report myself for duty this day on
+              <p className="flex flex-wrap items-center gap-2 leading-relaxed">
+                <span>I, hereby report myself for duty this day on</span>
                 <UnderlineInput
                   id="englishRejoin"
                   width="w-40"
                   className="ml-2"
                 />{" "}
-                forenoon / afternoon after availing Earned Leave / Half Pay
-                Leave / Medical Leave / Extra Ordinary Leave / Vacation Leave
-                for
+                <span>
+                  forenoon / afternoon after availing Earned Leave / Half Pay
+                  Leave / Medical Leave / Extra Ordinary Leave / Vacation Leave
+                </span>
+                <span>for</span>
                 <UnderlineInput
                   id="englishDays"
                   width="w-16"
                   className="ml-2"
                 />{" "}
-                days from
+                <span>days from</span>
                 <UnderlineInput
                   id="englishFrom"
                   width="w-32"
                   className="ml-2"
                 />{" "}
-                to
+                <span>to</span>
                 <UnderlineInput
                   id="englishTo"
                   width="w-32"
                   className="ml-2"
                 />{" "}
-                sanctioned vide Office Order No.{" "}
+                <span>sanctioned vide Office Order No.</span>
                 <UnderlineInput
                   id="englishOrder"
                   width="w-48"
                   className="ml-2"
                 />{" "}
-                dated
+                <span>dated</span>
                 <UnderlineInput
                   id="englishOrderDate"
                   width="w-28"
@@ -375,16 +390,19 @@ const generatePdfFromForm = async (element: HTMLElement, title: string) => {
   const pdf = new jsPDF("p", "pt", "a4");
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
-  const imgWidth = pageWidth;
+  const marginX = 24;
+  const marginY = 24;
+  const usablePageHeight = pageHeight - marginY * 2;
+  const imgWidth = pageWidth - marginX * 2;
   const imgHeight = (canvas.height * imgWidth) / canvas.width;
   let heightLeft = imgHeight;
-  let position = 0;
+  let position = marginY;
 
   while (heightLeft > 0) {
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+    pdf.addImage(imgData, "PNG", marginX, position, imgWidth, imgHeight);
+    heightLeft -= usablePageHeight;
     if (heightLeft > 0) {
-      position -= pageHeight;
+      position = heightLeft - imgHeight + marginY;
       pdf.addPage();
     }
   }

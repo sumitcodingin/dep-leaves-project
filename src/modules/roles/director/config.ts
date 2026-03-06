@@ -11,6 +11,14 @@ export const directorDashboard: RoleDashboardConfig = {
   helper: "Only requests flagged by Dean/Registrar appear here.",
   quickActions: [
     {
+      label: "Station leave approvals",
+      description:
+        "Review and decide station leave requests routed to Director.",
+      cta: "Open approvals",
+      href: "/dashboard/director/approvals",
+      icon: MapPin,
+    },
+    {
       label: "Joining report",
       description: "Review critical rejoining confirmations escalated to you.",
       cta: "Fill the form",
